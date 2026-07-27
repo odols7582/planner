@@ -208,6 +208,14 @@
   .item .meta{font-size:12px; color:var(--t3); margin-top:8px;}
   .item .del{position:absolute; top:12px; right:12px; color:var(--t3); font-size:18px; padding:4px;}
   .memo-card .mtitle{font-size:16px; font-weight:800; margin-bottom:6px; padding-right:24px;}
+  .mfilter{display:flex; gap:7px; flex-wrap:wrap; margin-bottom:12px; align-items:center;}
+  .mfilter button{display:flex; align-items:center; gap:5px; padding:6px 11px; border-radius:10px; background:var(--card); box-shadow:var(--shadow); color:var(--t2); font-size:12px; font-weight:700;}
+  .mfilter button.sel{background:var(--t1); color:#fff;}
+  .mfilter .fdot{width:11px; height:11px; border-radius:50%;}
+  .mcolor-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .mcolor-sw{width:30px; height:30px; border-radius:50%; border:3px solid transparent;}
+  .mcolor-sw.sel{border-color:var(--t1);}
+  .mcolor-add{width:30px; height:30px; border-radius:50%; border:2px dashed var(--line); color:var(--t3); display:flex; align-items:center; justify-content:center; font-size:16px;}
 
   /* 일기 */
   .diary-card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px;}
@@ -381,7 +389,7 @@ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
    ========================================================= */
 let uid = null;
 let profileName = "";
-const store = { schedules:{}, ideas:{}, memos:{}, diaries:{} };
+const store = { schedules:{}, ideas:{}, memos:{}, diaries:{}, reminders:{} };
 const listeners = [];
 let currentTab = "dash";
 let calYear, calMonth, selectedDate;
@@ -424,9 +432,10 @@ let cityResultsCache = [];           // 도시 검색 결과 임시
 let holidays = {};                   // "YYYY-MM-DD" -> 공휴일명 (대한민국)
 const holYearsLoaded = new Set();    // 공휴일 로드한 연도
 const FIXED_HOL = {"01-01":"신정","03-01":"삼일절","05-05":"어린이날","06-06":"현충일","08-15":"광복절","10-03":"개천절","10-09":"한글날","12-25":"성탄절"};
-const APP_VERSION = "1.6.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 15:20"; // 업데이트(빌드) 일시
+const APP_VERSION = "1.7.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 15:45"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.7.0", d:"2026-07-27", items:["메모에 색상(카테고리) 지정 — 기본 5색 + 추가/삭제, 색으로 필터","메모에 '~분 후 알림'(작성 후 N분 뒤 앱 푸시)"]},
   {v:"1.6.0", d:"2026-07-27", items:["대시보드 채팅형 빠른 입력(카테고리 선택→해당 메뉴 자동 추가)","캘린더에 대한민국 공휴일 표시","날씨를 상단 우측 작은 칩으로 이동(탭 시 상세 날씨)"]},
   {v:"1.5.0", d:"2026-07-27", items:["날씨 카드에 시간대별 미니 예보 추가","카드 탭 시 습도·바람·주간예보 상세 펼침","날씨 위치 직접 선택(도시 검색) 기능"]},
   {v:"1.4.0", d:"2026-07-27", items:["대시보드에 실시간 날씨 카드 추가(날씨에 따라 배경 변경)","알림 전송 우선순위 상향(제 시각에 도착하도록)"]},
@@ -451,6 +460,23 @@ const QCATS = [                      // 대시보드 빠른 입력 카테고리
   {k:"diary",    emoji:"📔", name:"일기",     ph:"오늘 있었던 일을 적어보세요"}
 ];
 let quickCat = "idea";
+const DEFAULT_MEMO_COLORS = [        // 메모 기본 색상 5종
+  {hex:"#3182F6", name:"파랑"},
+  {hex:"#12B886", name:"초록"},
+  {hex:"#F59F00", name:"노랑"},
+  {hex:"#F04452", name:"빨강"},
+  {hex:"#7C4DFF", name:"보라"}
+];
+let memoColors = [];                 // 사용자 메모 색상 팔레트
+let memoFilter = "";                 // 메모 색상 필터(hex, "" = 전체)
+const MEMO_REMIND = [                 // 메모 작성 후 ~분 뒤 알림
+  {v:null, label:"안 함"},
+  {v:0,    label:"끄기"},
+  {v:5,    label:"5분 후"},
+  {v:10,   label:"10분 후"},
+  {v:30,   label:"30분 후"},
+  {v:60,   label:"1시간 후"}
+];
 
 /* =========================================================
    3. 인증
@@ -558,9 +584,19 @@ function attachListeners(){
       // 사용량 집계(관리자가 볼 수 있게 meta에 개수 기록)
       db.ref(`meta/${uid}/counts/${key}`).set(Object.keys(store[key]).length);
       renderCurrent();
+      if(key==="schedules"||key==="memos") setTimeout(checkAlarms,200);
     });
     listeners.push({ref:r, cb});
   });
+  // 메모 색상 팔레트 구독(없으면 기본값으로 초기화)
+  const cr = refPath("memoColors");
+  const ccb = cr.on("value", snap=>{
+    const val = snap.val();
+    if(!val){ refPath("memoColors").set(DEFAULT_MEMO_COLORS); memoColors=DEFAULT_MEMO_COLORS.slice(); }
+    else { memoColors = Array.isArray(val)? val : Object.values(val); }
+    if(currentTab==="memo") renderMemo();
+  });
+  listeners.push({ref:cr, cb:ccb});
   // 관리자: 전체 사용자 현황 + 개선 요청 구독
   if(isAdmin){
     const mr = db.ref("meta");
@@ -1128,38 +1164,110 @@ function delIdea(id){ refPath("ideas/"+id).remove(); }
    ========================================================= */
 function renderMemo(){
   const v=el("viewMemo");
-  const list=entries("memos").sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
-  v.innerHTML= list.length? list.map(m=>`
-      <div class="item memo-card" onclick="memoModal('${m.id}')">
+  let list=entries("memos").sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  if(memoFilter) list=list.filter(m=>(m.color||"")===memoFilter);
+  const filters=`<div class="mfilter">
+    <button class="${memoFilter===""?"sel":""}" onclick="setMemoFilter('')">전체</button>
+    ${memoColors.map(c=>`<button class="${memoFilter===c.hex?"sel":""}" onclick="setMemoFilter('${c.hex}')"><span class="fdot" style="background:${c.hex}"></span>${esc(c.name||"")}</button>`).join("")}
+    <button onclick="colorManageModal()" style="margin-left:auto;">🎨 색 관리</button>
+  </div>`;
+  v.innerHTML = filters + (list.length? list.map(m=>`
+      <div class="item memo-card" style="border-left:5px solid ${m.color||"#D0D5DD"}" onclick="memoModal('${m.id}')">
         <button class="del" onclick="delMemo('${m.id}',event)">×</button>
         <div class="mtitle">${esc(m.title)||"(제목 없음)"}</div>
         <div class="txt">${esc(m.content)}</div>
         <div class="meta">${relTime(m.updatedAt||0)}</div>
       </div>`).join("")
-    : `<div class="empty"><span class="e-emoji">📝</span>메모가 없어요<br>계정 정보, 가고 싶은 곳 등을 기록해 보세요<br><br>우측 하단 <b>+</b> 버튼으로 추가</div>`;
+    : `<div class="empty"><span class="e-emoji">📝</span>${memoFilter?"이 색상의 메모가 없어요":"메모가 없어요<br>색으로 분류해 기록해 보세요<br><br>우측 하단 <b>+</b> 버튼으로 추가"}</div>`);
 }
+function setMemoFilter(hex){ memoFilter=hex; renderMemo(); }
 function memoModal(id){
   const editing=!!id;
-  const m=editing?store.memos[id]:{title:"",content:""};
+  const def=(memoColors[0]&&memoColors[0].hex)||"#3182F6";
+  const m=editing?store.memos[id]:{title:"",content:"",color:def};
+  const cur=m.color||def;
   openModal(`
     <h3>${editing?"메모 수정":"새 메모"}</h3>
     <div class="field"><label>제목</label><input id="mmTitle" type="text" placeholder="예: OO 사이트 계정" value="${esc(m.title)}"></div>
-    <div class="field"><label>내용</label><textarea id="mmContent" style="min-height:160px" placeholder="자유롭게 기록하세요">${esc(m.content)}</textarea></div>
+    <div class="field"><label>색상 (카테고리)</label>
+      <div class="mcolor-row" id="mmColors">
+        ${memoColors.map(c=>`<button class="mcolor-sw ${cur===c.hex?"sel":""}" data-hex="${c.hex}" style="background:${c.hex}" title="${esc(c.name||"")}" onclick="pickMemoColor('${c.hex}')"></button>`).join("")}
+        <button class="mcolor-add" onclick="colorManageModal()" title="색 추가/관리">＋</button>
+      </div>
+    </div>
+    <div class="field"><label>내용</label><textarea id="mmContent" style="min-height:150px" placeholder="자유롭게 기록하세요">${esc(m.content)}</textarea></div>
+    <div class="field"><label>알림 (작성 후 ~분 뒤 앱 푸시)</label>
+      <div class="alarm-chips" id="mmRemind">
+        ${MEMO_REMIND.map(o=>`<button data-r="${o.v===null?"null":o.v}" class="${o.v===null?"sel":""}" onclick="pickMemoRemind(${o.v===null?"null":o.v})">${o.label}</button>`).join("")}
+      </div>
+      ${(editing && m.remindAt && m.remindAt>Date.now())?`<div class="muted" style="font-size:11.5px;margin-top:6px;">현재 예약됨: ${fmtFull(m.remindAt)} · ('끄기'로 취소)</div>`:""}
+    </div>
     <div class="modal-actions">
       ${editing?`<button class="btn-danger" onclick="delMemo('${id}')">삭제</button>`:""}
       <button class="btn-ghost" onclick="closeModal()">닫기</button>
       <button class="btn-primary" style="flex:1" onclick="saveMemo('${id||""}')">저장</button>
     </div>
   `);
+  el("modalRoot")._memoColor=cur;
+  el("modalRoot")._memoRemind=null;
+}
+function pickMemoRemind(v){
+  el("modalRoot")._memoRemind=v;
+  document.querySelectorAll("#mmRemind button").forEach(b=>{ const bv=b.dataset.r==="null"?null:Number(b.dataset.r); b.classList.toggle("sel", bv===v); });
+}
+function pickMemoColor(hex){
+  el("modalRoot")._memoColor=hex;
+  document.querySelectorAll("#mmColors .mcolor-sw").forEach(b=>b.classList.toggle("sel", b.dataset.hex===hex));
 }
 function saveMemo(id){
   const title=el("mmTitle").value.trim();
   const content=el("mmContent").value.trim();
   if(!title && !content){ toast("내용을 입력해 주세요"); return; }
-  const data={title, content, updatedAt:Date.now()};
+  const data={title, content, color:el("modalRoot")._memoColor||"#3182F6", updatedAt:Date.now()};
+  const rem=el("modalRoot")._memoRemind;
+  if(typeof rem==="number"){
+    if(rem>0){ data.remindAt=Date.now()+rem*60000; data.notified=false; }
+    else { data.remindAt=null; data.notified=null; }   // 끄기
+  }   // rem===null → 기존 알림 그대로 유지
   if(id) refPath("memos/"+id).update(data);
   else { data.createdAt=Date.now(); refPath("memos").push(data); }
-  closeModal(); toast("저장했어요");
+  closeModal();
+  toast(data.remindAt ? Math.round((data.remindAt-Date.now())/60000)+"분 후 알림 예약!" : "저장했어요");
+  setTimeout(checkAlarms, 300);
+}
+function memoColorListHTML(){
+  if(!memoColors.length) return `<div class="muted" style="font-size:12.5px;padding:6px;">색상이 없어요. 아래에서 추가하세요.</div>`;
+  return memoColors.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);">
+    <span style="width:22px;height:22px;border-radius:50%;background:${c.hex};flex:0 0 auto;"></span>
+    <span style="flex:1;font-size:13.5px;font-weight:600;">${esc(c.name||c.hex)}</span>
+    <button onclick="delMemoColor(${i})" style="color:var(--red);font-size:12.5px;font-weight:700;padding:4px 8px;">삭제</button>
+  </div>`).join("");
+}
+function colorManageModal(){
+  openModal(`
+    <h3>🎨 메모 색상 관리</h3>
+    <div id="cmList">${memoColorListHTML()}</div>
+    <div class="field" style="margin-top:14px;"><label>색 추가</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="color" id="cmNewHex" value="#22B8CF" style="width:46px;height:42px;padding:2px;border:1.5px solid var(--line);border-radius:10px;background:#fff;">
+        <input type="text" id="cmNewName" placeholder="색 이름 (예: 업무)" style="flex:1;padding:12px;border:1.5px solid var(--line);border-radius:12px;outline:none;">
+        <button class="btn-primary" style="margin-top:0;padding:12px 16px;" onclick="addMemoColor()">추가</button>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn-primary" style="flex:1" onclick="closeModal()">닫기</button></div>
+  `);
+}
+function addMemoColor(){
+  const hex=el("cmNewHex").value; const name=el("cmNewName").value.trim()||hex;
+  refPath("memoColors").set(memoColors.concat([{hex,name}]));
+  el("cmNewName").value="";
+  toast("색을 추가했어요");
+  setTimeout(()=>{ const l=el("cmList"); if(l) l.innerHTML=memoColorListHTML(); }, 250);
+}
+function delMemoColor(i){
+  const next=memoColors.slice(); next.splice(i,1);
+  refPath("memoColors").set(next);
+  setTimeout(()=>{ const l=el("cmList"); if(l) l.innerHTML=memoColorListHTML(); }, 250);
 }
 function delMemo(id,e){
   if(e)e.stopPropagation();
@@ -1413,15 +1521,18 @@ function pruneFired(){
     if(ch) localStorage.setItem("kbFired", JSON.stringify(f));
   }catch(e){}
 }
+function showNotif(title, body, tag){
+  const opts={ body, icon:"icon-192.png", badge:"icon-192.png", tag:tag||title, renotify:true, requireInteraction:true };
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(reg=>reg.showNotification(title, opts)).catch(()=>{ try{new Notification(title, opts);}catch(e){} });
+    } else { new Notification(title, opts); }
+  }catch(e){}
+}
 function showLocalNotif(s){
   const off=(ALARM_OPTS.find(o=>o.v===s.alarm)||{}).label||"";
   const body=`${fmtDateK(s.date)} ${s.time}${(off&&off!=="정각")?" ("+off+")":""}${s.memo?" · "+s.memo:""}`;
-  const opts={ body, icon:"icon-192.png", badge:"icon-192.png", tag:"sch-"+s.id, renotify:true };
-  try{
-    if(navigator.serviceWorker && navigator.serviceWorker.ready){
-      navigator.serviceWorker.ready.then(reg=>reg.showNotification("📅 "+s.title, opts)).catch(()=>{ try{new Notification("📅 "+s.title, opts);}catch(e){} });
-    } else { new Notification("📅 "+s.title, opts); }
-  }catch(e){}
+  showNotif("📅 "+s.title, body, "sch-"+s.id);
 }
 function checkAlarms(){
   if(!uid || !("Notification" in window) || Notification.permission!=="granted") return;
@@ -1438,6 +1549,16 @@ function checkAlarms(){
     const key=s.id+"@"+at;
     if(now>=at && now < at+6*60000 && !fired[key]){
       showLocalNotif(s); fired[key]=1; changed=true;
+    }
+  });
+  entries("memos").forEach(m=>{
+    if(!m.remindAt || m.notified) return;
+    const at=Number(m.remindAt); if(isNaN(at)) return;
+    const key="memo@"+m.id+"@"+at;
+    if(now>=at && now < at+6*60000 && !fired[key]){
+      showNotif("📝 "+(m.title||"메모"), (m.content||"").slice(0,80), "memo-"+m.id);
+      fired[key]=1; changed=true;
+      refPath("memos/"+m.id+"/notified").set(true);
     }
   });
   if(changed) localStorage.setItem("kbFired", JSON.stringify(fired));
