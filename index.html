@@ -113,6 +113,22 @@
   /* 대시보드 */
   .greet{font-size:16px; font-weight:800; margin:6px 4px 2px;}
   .greet-sub{color:var(--t2); margin:0 4px 14px; font-size:12.5px;}
+  /* 날씨 카드 (배경은 날씨에 따라 변경) */
+  .weather{border-radius:20px; padding:18px; color:#fff; margin:2px 0 16px; position:relative; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.13);}
+  .weather.loading{background:#C9D2DE; color:#6B7684; text-align:center; font-size:12.5px; padding:24px; box-shadow:none;}
+  .weather .w-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .weather .w-loc{font-size:12.5px; font-weight:700; opacity:.96;}
+  .weather .w-emoji{font-size:36px; line-height:1;}
+  .weather .w-temp{font-size:40px; font-weight:800; line-height:1; margin-top:6px;}
+  .weather .w-desc{font-size:14px; font-weight:700; margin-top:4px;}
+  .weather .w-range{font-size:12px; opacity:.92; margin-top:6px; font-weight:600;}
+  .w-clear-day{background:linear-gradient(150deg,#5AB0F7,#2E7FE4);}
+  .w-clear-night{background:linear-gradient(150deg,#26407A,#101A33);}
+  .w-cloudy{background:linear-gradient(150deg,#8493A8,#5B6A80);}
+  .w-fog{background:linear-gradient(150deg,#9AA4B0,#6B7580);}
+  .w-rain{background:linear-gradient(150deg,#4A6580,#293A4F);}
+  .w-snow{background:linear-gradient(150deg,#7FA8CC,#587FA8);}
+  .w-storm{background:linear-gradient(150deg,#3E3857,#201D30);}
   .stat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
   .stat{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px;}
   .stat .n{font-size:20px; font-weight:800;}
@@ -370,9 +386,11 @@ let adminData = {};                  // 관리자 화면용: 전체 사용자 me
 let adminFeedback = {};              // 관리자 화면용: 받은 개선 요청
 const VAPID_KEY = "BENo2skhOoMjI2novg8ofynfmgJZe_IntCxUPLHIDrlES5aBtuqDIQwJO5DYv4S3qRCp5gdKY6pU171xpOgKuEY"; // FCM 웹푸시 공개키
 let fcmToken = null;                 // FCM 등록 토큰(있으면 서버 푸시 사용)
-const APP_VERSION = "1.3.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 14:30"; // 업데이트(빌드) 일시
+let weatherData = null;              // 날씨 카드 데이터(캐시)
+const APP_VERSION = "1.4.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 14:45"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.4.0", d:"2026-07-27", items:["대시보드에 실시간 날씨 카드 추가(날씨에 따라 배경 변경)","알림 전송 우선순위 상향(제 시각에 도착하도록)"]},
   {v:"1.3.0", d:"2026-07-27", items:["FCM 백그라운드 푸시 연동 — 앱을 꺼도 알림 도착","알림 아이콘을 홈 화면 아이콘과 통일"]},
   {v:"1.2.1", d:"2026-07-27", items:["일정에 '시간 상관없음(종일)' 옵션 추가","뒤로가기 시 모달만 닫히고 앱은 유지되도록 수정"]},
   {v:"1.2.0", d:"2026-07-27", items:["하단 네비바를 가계부 디자인으로 변경","일정 추가 화면 개선(시간 먼저·카드형 배치)","버전 클릭 시 변경 이력 표시","우측 상단 '개선 요청' 보내기 추가","새 버전 배포 시 업데이트 화면 자동 표시","뒤로가기로 앱이 종료되지 않도록"]},
@@ -471,6 +489,7 @@ auth.onAuthStateChanged(async (user)=>{
     attachListeners();
     switchTab("dash");
     setupFCM();
+    loadWeather();
   }else{
     uid=null; isAdmin=false;
     el("adminTab").classList.add("hidden");
@@ -603,6 +622,53 @@ function renderAdmin(){
 }
 
 /* =========================================================
+   5-2. 날씨 카드 (Open-Meteo · 무료/키불필요)
+   ========================================================= */
+function mapWeather(code, isDay){
+  const d = isDay!==0; const c = Number(code);
+  if(c===0) return d?{label:"맑음",emoji:"☀️",cls:"w-clear-day"}:{label:"맑은 밤",emoji:"🌙",cls:"w-clear-night"};
+  if(c===1||c===2) return d?{label:"구름 조금",emoji:"🌤️",cls:"w-clear-day"}:{label:"구름 조금",emoji:"☁️",cls:"w-clear-night"};
+  if(c===3) return {label:"흐림",emoji:"☁️",cls:"w-cloudy"};
+  if(c===45||c===48) return {label:"안개",emoji:"🌫️",cls:"w-fog"};
+  if(c>=51&&c<=57) return {label:"이슬비",emoji:"🌦️",cls:"w-rain"};
+  if((c>=61&&c<=67)||(c>=80&&c<=82)) return {label:"비",emoji:"🌧️",cls:"w-rain"};
+  if((c>=71&&c<=77)||c===85||c===86) return {label:"눈",emoji:"❄️",cls:"w-snow"};
+  if(c>=95) return {label:"뇌우",emoji:"⛈️",cls:"w-storm"};
+  return {label:"흐림",emoji:"☁️",cls:"w-cloudy"};
+}
+function weatherCardHTML(){
+  if(!weatherData) return `<div class="weather loading">🌤️ 날씨 불러오는 중…</div>`;
+  const w=weatherData;
+  const range=(w.max!=null&&w.min!=null)?`<div class="w-range">최고 ${w.max}° · 최저 ${w.min}°</div>`:"";
+  return `<div class="weather ${w.cls}">
+    <div class="w-top"><span class="w-loc">📍 ${esc(w.city||"현재 위치")}</span><span class="w-emoji">${w.emoji}</span></div>
+    <div class="w-temp">${w.temp}°</div>
+    <div class="w-desc">${esc(w.label)}</div>
+    ${range}
+  </div>`;
+}
+async function loadWeather(){
+  try{
+    let lat=37.5665, lon=126.9780;   // 기본: 서울
+    try{
+      const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:6000,maximumAge:600000}));
+      lat=pos.coords.latitude; lon=pos.coords.longitude;
+    }catch(e){ /* 위치 거부/실패 → 서울 기본 */ }
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+    const j=await (await fetch(url)).json();
+    const cur=j.current||{};
+    if(cur.temperature_2m===undefined) throw new Error("no data");
+    const day=j.daily||{};
+    const mx=Number((day.temperature_2m_max||[])[0]), mn=Number((day.temperature_2m_min||[])[0]);
+    const m=mapWeather(cur.weather_code, cur.is_day);
+    let city="";
+    try{ const gj=await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ko`)).json(); city=gj.city||gj.locality||gj.principalSubdivision||""; }catch(e){}
+    weatherData={ temp:Math.round(cur.temperature_2m), max:isFinite(mx)?Math.round(mx):null, min:isFinite(mn)?Math.round(mn):null, label:m.label, emoji:m.emoji, cls:m.cls, city };
+    const el2=document.getElementById("weatherWrap"); if(el2) el2.innerHTML=weatherCardHTML();
+  }catch(e){ const el2=document.getElementById("weatherWrap"); if(el2) el2.innerHTML=""; }
+}
+
+/* =========================================================
    6. 대시보드
    ========================================================= */
 function renderDash(){
@@ -619,6 +685,7 @@ function renderDash(){
   const greetWord = h<6?"늦은 밤이에요":h<12?"좋은 아침이에요":h<18?"좋은 오후예요":"편안한 저녁이에요";
 
   v.innerHTML = `
+    <div id="weatherWrap">${weatherCardHTML()}</div>
     <div class="greet">${greetWord}, ${esc(profileName)} 님 👋</div>
     <div class="greet-sub">오늘은 ${fmtDateK(today)}${todays.length?` · 일정 ${todays.length}개 (${doneCount} 완료)`:""}</div>
 
@@ -1186,6 +1253,7 @@ el("refreshBtn").onclick = forceRefresh;
 updateNotifBtn();
 pruneFired();
 setInterval(checkAlarms, 30000);
+setInterval(()=>{ if(uid) loadWeather(); }, 1800000);   // 날씨 30분마다 갱신
 
 /* =========================================================
    변경 이력 · 개선 요청 · 뒤로가기 방지 · 버전 업데이트 체크
