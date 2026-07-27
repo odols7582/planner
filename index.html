@@ -316,6 +316,7 @@ function toast(msg){const t=el("toast"); t.textContent=msg; t.classList.add("sho
 function refPath(p){return db.ref(`users/${uid}/${p}`);}
 const EV_COLORS = {blue:"#3182F6", red:"#F04452", green:"#12B886", yellow:"#F59F00", purple:"#7C4DFF"};
 const MOODS = ["😀","🙂","😐","😔","😢","😡","😴","🥰"];
+const ADMIN_EMAIL = "admin@admin.com"; // 마스터(관리자) 계정 이메일
 let isAdmin = false;                 // 현재 로그인 계정이 마스터(관리자)인지
 let adminData = {};                  // 관리자 화면용: 전체 사용자 meta
 
@@ -390,9 +391,8 @@ auth.onAuthStateChanged(async (user)=>{
     profileName = user.displayName || (user.email||"").split("@")[0];
     // 마지막 접속 시각 기록(앱 열 때마다 갱신)
     db.ref(`meta/${uid}`).update({ initial: profileName, lastLogin: Date.now() });
-    // 마스터(관리자) 계정 여부 확인
-    try{ const a = await db.ref(`admins/${uid}`).get(); isAdmin = a.exists() && a.val()===true; }
-    catch(e){ isAdmin = false; }
+    // 마스터(관리자) 계정 여부 확인 (이메일 기준)
+    isAdmin = (user.email||"").toLowerCase() === ADMIN_EMAIL;
     el("adminTab").classList.toggle("hidden", !isAdmin);
     el("auth").classList.add("hidden");
     el("app").style.display="block";
