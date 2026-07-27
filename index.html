@@ -129,6 +129,21 @@
   .w-rain{background:linear-gradient(150deg,#4A6580,#293A4F);}
   .w-snow{background:linear-gradient(150deg,#7FA8CC,#587FA8);}
   .w-storm{background:linear-gradient(150deg,#3E3857,#201D30);}
+  .weather{cursor:pointer;}
+  .w-top-r{display:flex; align-items:center; gap:10px;}
+  .w-citybtn{background:rgba(255,255,255,.22); color:#fff; font-size:11px; font-weight:700; padding:5px 9px; border-radius:8px;}
+  .w-hourly{display:flex; justify-content:space-between; gap:4px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.24);}
+  .w-hcol{display:flex; flex-direction:column; align-items:center; gap:5px; flex:1;}
+  .w-ht{font-size:11px; font-weight:700;}
+  .w-hbar{width:6px; border-radius:3px; background:rgba(255,255,255,.85);}
+  .w-htime{font-size:10.5px; opacity:.9; font-weight:600;}
+  .w-more{text-align:center; font-size:11.5px; opacity:.85; margin-top:12px; font-weight:600;}
+  .w-detail{margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.24);}
+  .w-stats{display:flex; gap:18px; font-size:12.5px; font-weight:700; margin-bottom:12px;}
+  .w-week{display:flex; flex-direction:column;}
+  .w-day{display:flex; align-items:center; font-size:12.5px; font-weight:600; padding:5px 0;}
+  .w-day+.w-day{border-top:1px solid rgba(255,255,255,.16);}
+  .w-dn{width:38px;} .w-de{width:30px; font-size:15px;} .w-dmax{flex:1; text-align:right; font-weight:800;} .w-dmin{width:44px; text-align:right; opacity:.82;}
   .stat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
   .stat{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px;}
   .stat .n{font-size:20px; font-weight:800;}
@@ -387,9 +402,12 @@ let adminFeedback = {};              // 관리자 화면용: 받은 개선 요�
 const VAPID_KEY = "BENo2skhOoMjI2novg8ofynfmgJZe_IntCxUPLHIDrlES5aBtuqDIQwJO5DYv4S3qRCp5gdKY6pU171xpOgKuEY"; // FCM 웹푸시 공개키
 let fcmToken = null;                 // FCM 등록 토큰(있으면 서버 푸시 사용)
 let weatherData = null;              // 날씨 카드 데이터(캐시)
-const APP_VERSION = "1.4.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 14:45"; // 업데이트(빌드) 일시
+let weatherExpanded = false;         // 날씨 카드 상세 펼침 여부
+let cityResultsCache = [];           // 도시 검색 결과 임시
+const APP_VERSION = "1.5.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 15:00"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.5.0", d:"2026-07-27", items:["날씨 카드에 시간대별 미니 예보 추가","카드 탭 시 습도·바람·주간예보 상세 펼침","날씨 위치 직접 선택(도시 검색) 기능"]},
   {v:"1.4.0", d:"2026-07-27", items:["대시보드에 실시간 날씨 카드 추가(날씨에 따라 배경 변경)","알림 전송 우선순위 상향(제 시각에 도착하도록)"]},
   {v:"1.3.0", d:"2026-07-27", items:["FCM 백그라운드 푸시 연동 — 앱을 꺼도 알림 도착","알림 아이콘을 홈 화면 아이콘과 통일"]},
   {v:"1.2.1", d:"2026-07-27", items:["일정에 '시간 상관없음(종일)' 옵션 추가","뒤로가기 시 모달만 닫히고 앱은 유지되도록 수정"]},
@@ -636,36 +654,132 @@ function mapWeather(code, isDay){
   if(c>=95) return {label:"뇌우",emoji:"⛈️",cls:"w-storm"};
   return {label:"흐림",emoji:"☁️",cls:"w-cloudy"};
 }
+function buildHourly(h, curTime){
+  if(!h||!h.time) return [];
+  const times=h.time, temps=h.temperature_2m||[];
+  const key=(curTime||"").slice(0,13);
+  let start=times.findIndex(t=>String(t).slice(0,13)===key);
+  if(start<0) start=0;
+  const out=[];
+  for(let i=start;i<times.length && out.length<6;i+=3){
+    const hh=new Date(times[i]).getHours();
+    out.push({ time: out.length===0?"지금":(hh+"시"), temp:Math.round(temps[i]) });
+  }
+  return out;
+}
+function buildDaily(d){
+  if(!d||!d.time) return [];
+  const WD=["일","월","화","수","목","금","토"];
+  const out=[];
+  for(let i=0;i<d.time.length && i<7;i++){
+    const dt=new Date(d.time[i]+"T00:00:00");
+    const m=mapWeather((d.weather_code||[])[i], 1);
+    out.push({ wname: i===0?"오늘":WD[dt.getDay()], emoji:m.emoji, max:Math.round((d.temperature_2m_max||[])[i]), min:Math.round((d.temperature_2m_min||[])[i]) });
+  }
+  return out;
+}
 function weatherCardHTML(){
   if(!weatherData) return `<div class="weather loading">🌤️ 날씨 불러오는 중…</div>`;
   const w=weatherData;
-  const range=(w.max!=null&&w.min!=null)?`<div class="w-range">최고 ${w.max}° · 최저 ${w.min}°</div>`:"";
-  return `<div class="weather ${w.cls}">
-    <div class="w-top"><span class="w-loc">📍 ${esc(w.city||"현재 위치")}</span><span class="w-emoji">${w.emoji}</span></div>
+  let hourly="";
+  if(w.hourly&&w.hourly.length){
+    const ts=w.hourly.map(x=>x.temp), mn=Math.min(...ts), mx=Math.max(...ts), sp=Math.max(1,mx-mn);
+    hourly=`<div class="w-hourly">`+w.hourly.map(x=>{
+      const hgt=14+Math.round((x.temp-mn)/sp*22);
+      return `<div class="w-hcol"><span class="w-ht">${x.temp}°</span><span class="w-hbar" style="height:${hgt}px"></span><span class="w-htime">${esc(x.time)}</span></div>`;
+    }).join("")+`</div>`;
+  }
+  let detail="";
+  if(weatherExpanded){
+    const wk=(w.daily||[]).map(d=>`<div class="w-day"><span class="w-dn">${esc(d.wname)}</span><span class="w-de">${d.emoji}</span><span class="w-dmax">${d.max}°</span><span class="w-dmin">${d.min}°</span></div>`).join("");
+    detail=`<div class="w-detail">
+      <div class="w-stats"><span>💧 습도 ${w.humidity!=null?w.humidity+"%":"-"}</span><span>💨 바람 ${w.wind!=null?w.wind+"m/s":"-"}</span></div>
+      <div class="w-week">${wk}</div>
+    </div>`;
+  }
+  return `<div class="weather ${w.cls}" onclick="toggleWeather()">
+    <div class="w-top">
+      <span class="w-loc">📍 ${esc(w.city||"현재 위치")}</span>
+      <span class="w-top-r"><button class="w-citybtn" onclick="event.stopPropagation();cityModal()">위치 변경</button><span class="w-emoji">${w.emoji}</span></span>
+    </div>
     <div class="w-temp">${w.temp}°</div>
     <div class="w-desc">${esc(w.label)}</div>
-    ${range}
+    ${(w.max!=null&&w.min!=null)?`<div class="w-range">최고 ${w.max}° · 최저 ${w.min}°</div>`:""}
+    ${hourly}
+    ${detail}
+    <div class="w-more">${weatherExpanded?"접기 ▴":"상세 보기 ▾"}</div>
   </div>`;
 }
+function toggleWeather(){ weatherExpanded=!weatherExpanded; const w=el("weatherWrap"); if(w) w.innerHTML=weatherCardHTML(); }
 async function loadWeather(){
   try{
-    let lat=37.5665, lon=126.9780;   // 기본: 서울
-    try{
-      const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:6000,maximumAge:600000}));
-      lat=pos.coords.latitude; lon=pos.coords.longitude;
-    }catch(e){ /* 위치 거부/실패 → 서울 기본 */ }
-    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+    let lat=37.5665, lon=126.9780, cityName=null, useGeo=true;
+    const saved=localStorage.getItem("kbWeatherLoc");
+    if(saved){ try{ const s=JSON.parse(saved); lat=s.lat; lon=s.lon; cityName=s.name; useGeo=false; }catch(e){} }
+    if(useGeo){
+      try{ const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:6000,maximumAge:600000})); lat=pos.coords.latitude; lon=pos.coords.longitude; }catch(e){}
+    }
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day,relative_humidity_2m,wind_speed_10m&hourly=temperature_2m&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=7&wind_speed_unit=ms&timezone=auto`;
     const j=await (await fetch(url)).json();
     const cur=j.current||{};
     if(cur.temperature_2m===undefined) throw new Error("no data");
     const day=j.daily||{};
     const mx=Number((day.temperature_2m_max||[])[0]), mn=Number((day.temperature_2m_min||[])[0]);
     const m=mapWeather(cur.weather_code, cur.is_day);
-    let city="";
-    try{ const gj=await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ko`)).json(); city=gj.city||gj.locality||gj.principalSubdivision||""; }catch(e){}
-    weatherData={ temp:Math.round(cur.temperature_2m), max:isFinite(mx)?Math.round(mx):null, min:isFinite(mn)?Math.round(mn):null, label:m.label, emoji:m.emoji, cls:m.cls, city };
-    const el2=document.getElementById("weatherWrap"); if(el2) el2.innerHTML=weatherCardHTML();
-  }catch(e){ const el2=document.getElementById("weatherWrap"); if(el2) el2.innerHTML=""; }
+    let city=cityName;
+    if(!city){ try{ const gj=await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ko`)).json(); city=gj.city||gj.locality||gj.principalSubdivision||"현재 위치"; }catch(e){ city="현재 위치"; } }
+    weatherData={
+      temp:Math.round(cur.temperature_2m),
+      max:isFinite(mx)?Math.round(mx):null, min:isFinite(mn)?Math.round(mn):null,
+      label:m.label, emoji:m.emoji, cls:m.cls, city,
+      humidity: cur.relative_humidity_2m!=null?Math.round(cur.relative_humidity_2m):null,
+      wind: cur.wind_speed_10m!=null?Math.round(cur.wind_speed_10m*10)/10:null,
+      hourly: buildHourly(j.hourly, cur.time),
+      daily: buildDaily(day)
+    };
+    const el2=el("weatherWrap"); if(el2) el2.innerHTML=weatherCardHTML();
+  }catch(e){ const el2=el("weatherWrap"); if(el2) el2.innerHTML=""; }
+}
+function cityModal(){
+  openModal(`
+    <h3>📍 위치 설정</h3>
+    <div class="idea-input" style="margin-bottom:6px;">
+      <input id="cityQ" type="text" placeholder="도시 이름 (예: 부산, 제주, Tokyo)" onkeydown="if(event.key==='Enter')searchCity()">
+      <button onclick="searchCity()">검색</button>
+    </div>
+    <div id="cityResults" style="min-height:20px;"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="useCurrentLocation()">현재 위치</button>
+      <button class="btn-primary" style="flex:1" onclick="closeModal()">닫기</button>
+    </div>
+  `);
+  setTimeout(()=>{ const i=el("cityQ"); if(i) i.focus(); }, 120);
+}
+async function searchCity(){
+  const q=el("cityQ").value.trim(); if(!q) return;
+  const box=el("cityResults"); box.innerHTML=`<div class="muted" style="padding:8px;font-size:12.5px;">검색 중…</div>`;
+  try{
+    const j=await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=ko&format=json`)).json();
+    cityResultsCache=j.results||[];
+    if(!cityResultsCache.length){ box.innerHTML=`<div class="muted" style="padding:8px;font-size:12.5px;">검색 결과가 없어요</div>`; return; }
+    box.innerHTML=cityResultsCache.map((r,i)=>{
+      const name=[r.name, r.admin1, r.country].filter(Boolean).join(", ");
+      return `<div class="item" style="cursor:pointer;padding:12px;margin-bottom:6px;" onclick="pickCityIdx(${i})">${esc(name)}</div>`;
+    }).join("");
+  }catch(e){ box.innerHTML=`<div class="muted" style="padding:8px;font-size:12.5px;">검색에 실패했어요</div>`; }
+}
+function pickCityIdx(i){
+  const r=cityResultsCache[i]; if(!r) return;
+  localStorage.setItem("kbWeatherLoc", JSON.stringify({lat:r.latitude, lon:r.longitude, name:r.name}));
+  closeModal(); weatherData=null; weatherExpanded=false;
+  const w=el("weatherWrap"); if(w) w.innerHTML=weatherCardHTML();
+  loadWeather(); toast(r.name+"(으)로 설정했어요");
+}
+function useCurrentLocation(){
+  localStorage.removeItem("kbWeatherLoc");
+  closeModal(); weatherData=null; weatherExpanded=false;
+  const w=el("weatherWrap"); if(w) w.innerHTML=weatherCardHTML();
+  loadWeather(); toast("현재 위치로 설정했어요");
 }
 
 /* =========================================================
