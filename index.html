@@ -4,7 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#3182F6" />
-<title>마이 플래너</title>
+<title>김비서</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="김비서" />
 <style>
   :root{
     --blue:#3182F6; --blue-dark:#1B64DA; --blue-soft:#E8F1FE;
@@ -196,12 +203,12 @@
   <div class="auth-card">
     <div class="brand">
       <div class="logo">🗓️</div>
-      <h1>마이 플래너</h1>
+      <h1>김비서</h1>
       <p id="authSubtitle">일정 · 아이디어 · 메모 · 일기를 한곳에</p>
     </div>
     <div class="field">
-      <label>이니셜 (아이디)</label>
-      <input id="inId" type="text" placeholder="예: hs, abc, gil-dong" autocomplete="username" autocapitalize="none" spellcheck="false" />
+      <label>이메일</label>
+      <input id="inEmail" type="email" placeholder="you@example.com" autocomplete="email" autocapitalize="none" spellcheck="false" />
     </div>
     <div class="field">
       <label>비밀번호</label>
@@ -309,7 +316,6 @@ function toast(msg){const t=el("toast"); t.textContent=msg; t.classList.add("sho
 function refPath(p){return db.ref(`users/${uid}/${p}`);}
 const EV_COLORS = {blue:"#3182F6", red:"#F04452", green:"#12B886", yellow:"#F59F00", purple:"#7C4DFF"};
 const MOODS = ["😀","🙂","😐","😔","😢","😡","😴","🥰"];
-const ID_SUFFIX = "@planner.app";   // 이니셜(아이디)을 내부적으로 이메일 형태로 변환할 때 붙이는 고정 도메인
 let isAdmin = false;                 // 현재 로그인 계정이 마스터(관리자)인지
 let adminData = {};                  // 관리자 화면용: 전체 사용자 meta
 
@@ -321,7 +327,7 @@ let authMode = "login"; // login | signup
 function setAuthMode(mode){
   authMode = mode;
   const signup = mode==="signup";
-  el("authSubtitle").textContent = signup ? "이니셜(아이디)로 간편하게 시작하세요" : "일정 · 아이디어 · 메모 · 일기를 한곳에";
+  el("authSubtitle").textContent = signup ? "이메일과 비밀번호로 가입하세요" : "일정 · 아이디어 · 메모 · 일기를 한곳에";
   el("authBtn").textContent = signup ? "회원가입" : "로그인";
   el("switchLine").innerHTML = signup
     ? `이미 계정이 있으신가요?<b id="switchBtn">로그인</b>`
@@ -335,11 +341,11 @@ function authMsg(m, ok){
 }
 function authErrorK(code){
   const map={
-    "auth/invalid-email":"아이디 형식이 올바르지 않아요.",
-    "auth/user-not-found":"가입되지 않은 아이디예요.",
+    "auth/invalid-email":"이메일 형식이 올바르지 않아요.",
+    "auth/user-not-found":"가입되지 않은 이메일이에요.",
     "auth/wrong-password":"비밀번호가 틀렸어요.",
-    "auth/invalid-credential":"아이디 또는 비밀번호가 올바르지 않아요.",
-    "auth/email-already-in-use":"이미 사용 중인 아이디예요.",
+    "auth/invalid-credential":"이메일 또는 비밀번호가 올바르지 않아요.",
+    "auth/email-already-in-use":"이미 가입된 이메일이에요.",
     "auth/weak-password":"비밀번호는 6자 이상이어야 해요.",
     "auth/too-many-requests":"잠시 후 다시 시도해 주세요.",
     "auth/network-request-failed":"네트워크 연결을 확인해 주세요."
@@ -348,19 +354,19 @@ function authErrorK(code){
 }
 
 el("authBtn").onclick = async ()=>{
-  const initial = el("inId").value.trim().toLowerCase();
+  const email = el("inEmail").value.trim().toLowerCase();
   const pw = el("inPw").value;
-  if(!initial || !pw){ authMsg("아이디와 비밀번호를 입력해 주세요."); return; }
-  if(!/^[a-z0-9._-]{2,20}$/.test(initial)){ authMsg("아이디는 영문/숫자 2~20자로 입력해 주세요."); return; }
+  if(!email || !pw){ authMsg("이메일과 비밀번호를 입력해 주세요."); return; }
+  if(!/^[^\s@]+@[^\s@]+$/.test(email)){ authMsg("이메일 형식으로 입력해 주세요."); return; }
   if(authMode==="signup" && pw.length<6){ authMsg("비밀번호는 6자 이상이어야 해요."); return; }
-  const email = initial + ID_SUFFIX;   // 이니셜을 내부 이메일 형태로 변환
+  const name = email.split("@")[0];   // 표시용 이름(이메일 앞부분)
   const btn=el("authBtn"); btn.disabled=true; btn.textContent="잠시만요…";
   try{
     if(authMode==="signup"){
       const cred = await auth.createUserWithEmailAndPassword(email, pw);
-      await cred.user.updateProfile({displayName:initial});
-      await db.ref(`users/${cred.user.uid}/profile`).set({initial, createdAt:Date.now()});
-      await db.ref(`meta/${cred.user.uid}`).update({initial, createdAt:Date.now(), lastLogin:Date.now()});
+      await cred.user.updateProfile({displayName:name});
+      await db.ref(`users/${cred.user.uid}/profile`).set({email, createdAt:Date.now()});
+      await db.ref(`meta/${cred.user.uid}`).update({initial:name, email, createdAt:Date.now(), lastLogin:Date.now()});
     }else{
       await auth.signInWithEmailAndPassword(email, pw);
     }
@@ -891,6 +897,65 @@ setTimeout(()=>{
     el("splash").classList.add("hidden");
   }
 }, 3000);
+
+/* =========================================================
+   PWA: 바탕화면 설치 안내
+   ========================================================= */
+let deferredPrompt = null;
+function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function installSnoozed(){ return Date.now() < (+(localStorage.getItem("installSnooze")||0)); }
+function snoozeInstall(days){ localStorage.setItem("installSnooze", String(Date.now()+days*86400000)); }
+function closeInstall(){ const b=document.getElementById("installSheet"); if(b) b.remove(); }
+
+function showInstallSheet(mode){   // 'prompt'(안드로이드/데스크톱) | 'ios'
+  if(isStandalone() || installSnoozed() || document.getElementById("installSheet")) return;
+  const sheet=document.createElement("div");
+  sheet.id="installSheet";
+  sheet.style.cssText="position:fixed;left:12px;right:12px;bottom:16px;z-index:600;background:#fff;border-radius:20px;box-shadow:0 10px 36px rgba(0,0,0,.28);padding:18px;max-width:440px;margin:0 auto;animation:slideup .3s;";
+  if(mode==="ios"){
+    sheet.innerHTML=`
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <img src="icon-192.png" style="width:46px;height:46px;border-radius:12px;">
+        <div><div style="font-weight:800;font-size:16px;">김비서 홈 화면에 추가</div>
+        <div style="font-size:12px;color:#4E5968;">앱처럼 전체화면으로 사용하세요</div></div>
+      </div>
+      <div style="font-size:13px;color:#4E5968;line-height:1.7;background:#F2F4F6;border-radius:12px;padding:12px;">
+        1. 하단 <b>공유</b> 버튼 <span style="font-size:16px;">⬆️</span> 을 누르세요<br>
+        2. <b>'홈 화면에 추가'</b> 를 선택하세요
+      </div>
+      <button onclick="snoozeInstall(7);closeInstall();" style="width:100%;margin-top:12px;padding:13px;border-radius:12px;background:#3182F6;color:#fff;font-weight:700;font-size:15px;border:none;">확인</button>`;
+  }else{
+    sheet.innerHTML=`
+      <div style="display:flex;align-items:center;gap:12px;">
+        <img src="icon-192.png" style="width:46px;height:46px;border-radius:12px;">
+        <div style="flex:1;"><div style="font-weight:800;font-size:16px;">김비서 설치</div>
+        <div style="font-size:12px;color:#4E5968;">바탕화면에 추가하고 앱처럼 사용하세요</div></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px;">
+        <button id="instLater" style="flex:1;padding:13px;border-radius:12px;background:#F2F4F6;color:#4E5968;font-weight:700;border:none;">나중에</button>
+        <button id="instYes" style="flex:1;padding:13px;border-radius:12px;background:#3182F6;color:#fff;font-weight:700;border:none;">설치</button>
+      </div>`;
+  }
+  document.body.appendChild(sheet);
+  if(mode==="prompt"){
+    document.getElementById("instLater").onclick=()=>{ snoozeInstall(3); closeInstall(); };
+    document.getElementById("instYes").onclick=async ()=>{
+      closeInstall();
+      if(deferredPrompt){ deferredPrompt.prompt(); try{ await deferredPrompt.userChoice; }catch(e){} deferredPrompt=null; }
+    };
+  }
+}
+
+window.addEventListener("beforeinstallprompt",(e)=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  setTimeout(()=>showInstallSheet("prompt"), 1200);
+});
+window.addEventListener("appinstalled",()=>{ closeInstall(); snoozeInstall(3650); });
+
+// iOS(사파리)는 beforeinstallprompt 미지원 → 접속 시 수동 추가 안내
+if(isIOS() && !isStandalone()){ setTimeout(()=>showInstallSheet("ios"), 1500); }
 </script>
 </body>
 </html>
