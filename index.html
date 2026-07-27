@@ -95,6 +95,9 @@
   .alarm-chips{display:flex; gap:7px; flex-wrap:wrap;}
   .alarm-chips button{padding:8px 12px; border-radius:10px; background:var(--bg); color:var(--t2); font-size:12.5px; font-weight:700;}
   .alarm-chips button.sel{background:var(--blue); color:#fff;}
+  .allday-row{display:flex; align-items:center; justify-content:space-between; background:var(--bg); border-radius:12px; padding:11px 14px; margin:2px 0 8px; font-size:13px; font-weight:700; color:var(--t2);}
+  .allday-row input{width:20px; height:20px; accent-color:var(--blue);}
+  .tp.dim{opacity:.32; pointer-events:none;}
   .topbar h2{margin:0; font-size:15px; font-weight:800;}
   .topbar .u{font-size:12px; color:var(--t3);}
   .icon-btn{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; background:var(--card); box-shadow:var(--shadow);}
@@ -364,9 +367,10 @@ const ADMIN_EMAIL = "admin@admin.com"; // 마스터(관리자) 계정 이메일
 let isAdmin = false;                 // 현재 로그인 계정이 마스터(관리자)인지
 let adminData = {};                  // 관리자 화면용: 전체 사용자 meta
 let adminFeedback = {};              // 관리자 화면용: 받은 개선 요청
-const APP_VERSION = "1.2.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 14:20"; // 업데이트(빌드) 일시
+const APP_VERSION = "1.2.1";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 14:25"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.2.1", d:"2026-07-27", items:["일정에 '시간 상관없음(종일)' 옵션 추가","뒤로가기 시 모달만 닫히고 앱은 유지되도록 수정"]},
   {v:"1.2.0", d:"2026-07-27", items:["하단 네비바를 가계부 디자인으로 변경","일정 추가 화면 개선(시간 먼저·카드형 배치)","버전 클릭 시 변경 이력 표시","우측 상단 '개선 요청' 보내기 추가","새 버전 배포 시 업데이트 화면 자동 표시","뒤로가기로 앱이 종료되지 않도록"]},
   {v:"1.1.0", d:"2026-07-27", items:["가계부와 동일한 Noto Sans KR 글꼴 적용","일정 추가에 시간 휠 피커 + 알림(앱 푸시) 선택","상단 버전바(새로고침/알림 허용)","모든 모달에 닫기 버튼"]},
   {v:"1.0.0", d:"2026-07-27", items:["첫 배포 — 로그인, 대시보드, 일정(캘린더), 아이디어, 메모, 일기, 관리자"]}
@@ -626,7 +630,7 @@ function renderDash(){
         <div class="todo-line">
           <span class="dot" style="background:${EV_COLORS[s.color]||EV_COLORS.blue}"></span>
           <span class="tt ${s.done?'strike':''}">${esc(s.title)}</span>
-          <span class="tm">${s.time?esc(s.time):""}</span>
+          <span class="tm">${s.allday?'종일':(s.time?esc(s.time):'')}</span>
         </div>`).join("")
         : `<div class="empty"><span class="e-emoji">🌤️</span>오늘 등록된 일정이 없어요</div>`}
     </div>
@@ -714,7 +718,7 @@ function renderCal(){
           <div class="chk ${s.done?'on':''}" onclick="toggleDone('${s.id}',event)">${s.done?'✓':''}</div>
           <div class="body" onclick="scheduleModal('${s.id}')">
             <div class="t ${s.done?'strike':''}">${esc(s.title)}</div>
-            <div class="sub">${s.time?'⏰ '+esc(s.time)+'  ':''}${s.memo?esc(s.memo):''}</div>
+            <div class="sub">${s.allday?'📌 종일  ':(s.time?'⏰ '+esc(s.time)+'  ':'')}${s.memo?esc(s.memo):''}</div>
           </div>
         </div>`).join("")
         : `<div class="empty"><span class="e-emoji">🗓️</span>이 날의 일정이 없어요</div>`}
@@ -745,8 +749,9 @@ function scheduleModal(id, date){
   const alarmSel = (s.alarm===undefined?null:s.alarm);
   openModal(`
     <h3>${editing?"일정 수정":"새 일정"}</h3>
+    <label class="allday-row"><span>⏱️ 시간 상관없음 (종일)</span><input type="checkbox" id="mAllday" ${s.allday?"checked":""} onchange="toggleAllday(this.checked)"></label>
     <label style="display:block;font-size:13px;color:var(--t2);margin:2px 0 0;font-weight:700;text-align:center;">시간 선택</label>
-    <div class="tp">
+    <div class="tp" id="tpWrap">
       <div class="tp-band"></div>
       <div class="tp-col ampm" id="tpAmpm"></div>
       <div class="tp-col hh" id="tpHH"></div>
@@ -778,11 +783,13 @@ function scheduleModal(id, date){
       <button class="btn-primary" style="flex:1" onclick="saveSchedule('${id||""}')">저장</button>
     </div>
   `);
-  const root=el("modalRoot"); root._color=s.color; root._alarm=alarmSel;
+  const root=el("modalRoot"); root._color=s.color; root._alarm=alarmSel; root._allday=!!s.allday;
   buildWheel(el("tpAmpm"), ["오전","오후"], ampm);
   buildWheel(el("tpHH"), Array.from({length:12},(_,i)=>String(i+1)), h12-1);
   buildWheel(el("tpMM"), Array.from({length:60},(_,i)=>pad(i)), mm);
+  if(s.allday) el("tpWrap").classList.add("dim");
 }
+function toggleAllday(v){ el("modalRoot")._allday=v; el("tpWrap").classList.toggle("dim", v); }
 function pickColor(c){
   el("modalRoot")._color=c;
   document.querySelectorAll("#mColor button").forEach(b=>b.classList.toggle("sel", b.dataset.c===c));
@@ -794,13 +801,15 @@ function pickAlarm(v){
 function saveSchedule(id){
   const title=el("mTitle").value.trim();
   if(!title){ toast("제목을 입력해 주세요"); return; }
+  const allday=el("mAllday").checked;
   const ampmIdx=el("tpAmpm")._get(), h12=el("tpHH")._get()+1, mm=el("tpMM")._get();
   let h24=h12%12; if(ampmIdx===1) h24+=12;
   const root=el("modalRoot");
   const data={
     title,
     date:el("mDate").value,
-    time:pad(h24)+":"+pad(mm),
+    time: allday ? "" : pad(h24)+":"+pad(mm),
+    allday: allday,
     memo:el("mMemo").value.trim(),
     color:root._color||"blue",
     alarm:(root._alarm===undefined?null:root._alarm)
@@ -991,12 +1000,17 @@ function delDiary(id){
 /* =========================================================
    11. 모달 공통
    ========================================================= */
+let modalHistoryActive=false, suppressPop=false;
 function openModal(html){
   const root=el("modalRoot");
   root.innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;
   document.body.style.overflow="hidden";
+  if(!modalHistoryActive){ modalHistoryActive=true; try{ history.pushState({modal:true},""); }catch(e){} }
 }
-function closeModal(){ el("modalRoot").innerHTML=""; document.body.style.overflow=""; }
+function closeModal(){
+  el("modalRoot").innerHTML=""; document.body.style.overflow="";
+  if(modalHistoryActive){ modalHistoryActive=false; suppressPop=true; try{ history.back(); }catch(e){ suppressPop=false; } }
+}
 function confirmModal(title,msg,onOk){
   openModal(`
     <h3>${esc(title)}</h3>
@@ -1127,8 +1141,9 @@ function checkAlarms(){
   let fired; try{ fired=JSON.parse(localStorage.getItem("kbFired")||"{}"); }catch(e){ fired={}; }
   let changed=false;
   entries("schedules").forEach(s=>{
-    if(s.alarm===undefined || s.alarm===null || s.done || !s.time) return;
-    const dt=new Date(s.date+"T"+s.time+":00").getTime();
+    if(s.alarm===undefined || s.alarm===null || s.done) return;
+    const t = s.time || "09:00";   // 종일 일정은 오전 9시 기준으로 알림
+    const dt=new Date(s.date+"T"+t+":00").getTime();
     if(isNaN(dt)) return;
     const at=dt - s.alarm*60000;
     const key=s.id+"@"+at;
@@ -1189,15 +1204,17 @@ function sendFeedback(){
    .catch(()=>{ toast("전송에 실패했어요. 잠시 후 다시 시도해 주세요"); });
 }
 
-/* 뒤로가기로 앱이 종료되지 않도록 (모달 닫기 → 대시보드 → 유지) */
-history.pushState({kb:1}, "");
+/* 뒤로가기로 앱이 종료되지 않도록 (모달 열림 시 히스토리를 쌓아 안전하게 닫힘) */
 window.addEventListener("popstate", ()=>{
-  const modalOpen = !!document.querySelector("#modalRoot .modal-bg");
-  const sheet = document.getElementById("installSheet");
-  if(modalOpen || sheet){ if(modalOpen) closeModal(); if(sheet) sheet.remove(); history.pushState({kb:1},""); return; }
-  if(uid && currentTab && currentTab!=="dash"){ switchTab("dash"); history.pushState({kb:1},""); return; }
-  history.pushState({kb:1},"");
+  if(suppressPop){ suppressPop=false; return; }                 // 닫기 버튼으로 닫을 때의 pop 무시
+  if(el("modalRoot").innerHTML.trim() !== ""){                  // 모달 열려있으면 닫기만 하고 유지
+    modalHistoryActive=false; el("modalRoot").innerHTML=""; document.body.style.overflow=""; return;
+  }
+  const sheet=document.getElementById("installSheet"); if(sheet){ sheet.remove(); history.pushState({keep:1},""); return; }
+  if(uid && currentTab && currentTab!=="dash"){ switchTab("dash"); }
+  history.pushState({keep:1},"");                               // 항상 버퍼 유지 → 앱 종료 방지
 });
+history.pushState({keep:1}, "");                                // 초기 버퍼
 
 /* 배포 버전과 앱 버전 불일치 시 업데이트 화면 후 새로고침 */
 function showUpdateOverlay(){
