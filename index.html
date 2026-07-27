@@ -12,6 +12,9 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="김비서" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --blue:#3182F6; --blue-dark:#1B64DA; --blue-soft:#E8F1FE;
@@ -24,12 +27,12 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
   body{
-    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",Roboto,sans-serif;
+    font-family:'Noto Sans KR','맑은 고딕','Malgun Gothic',sans-serif;
     background:var(--bg); color:var(--t1); -webkit-font-smoothing:antialiased;
-    overscroll-behavior-y:none;
+    overscroll-behavior-y:none; font-size:13px; letter-spacing:-.3px;
   }
   button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
-  input,textarea,select{font-family:inherit;font-size:16px;}
+  input,textarea,select{font-family:inherit;font-size:14px;letter-spacing:-.3px;}
   .hidden{display:none !important;}
 
   /* ===== 로그인 ===== */
@@ -43,8 +46,8 @@
   }
   .brand{text-align:center; margin-bottom:24px;}
   .brand .logo{width:74px;height:74px;border-radius:18px;box-shadow:0 6px 16px rgba(49,130,246,.35);}
-  .brand h1{margin:8px 0 4px; font-size:22px; color:var(--t1);}
-  .brand p{margin:0; color:var(--t3); font-size:14px;}
+  .brand h1{margin:8px 0 4px; font-size:18px; color:var(--t1); font-weight:800;}
+  .brand p{margin:0; color:var(--t3); font-size:12.5px;}
   .field{margin-bottom:14px;}
   .field label{display:block; font-size:13px; color:var(--t2); margin-bottom:6px; font-weight:600;}
   .field input{
@@ -54,11 +57,11 @@
   .field input:focus{border-color:var(--blue);}
   .btn-primary{
     width:100%; padding:15px; background:var(--blue); color:#fff; border-radius:12px;
-    font-size:16px; font-weight:700; margin-top:6px; transition:background .15s;
+    font-size:14px; font-weight:700; margin-top:6px; transition:background .15s;
   }
   .btn-primary:active{background:var(--blue-dark);}
   .btn-primary:disabled{opacity:.6;}
-  .auth-switch{text-align:center; margin-top:18px; font-size:14px; color:var(--t2);}
+  .auth-switch{text-align:center; margin-top:18px; font-size:12.5px; color:var(--t2);}
   .auth-switch b{color:var(--blue); cursor:pointer; margin-left:4px;}
   .auth-msg{font-size:13px; text-align:center; margin-top:12px; min-height:18px; color:var(--red);}
   .auth-msg.ok{color:var(--green);}
@@ -66,27 +69,50 @@
   /* ===== 앱 레이아웃 ===== */
   #app{display:none; padding-bottom:calc(72px + var(--safe-b));}
   .topbar{
-    position:sticky; top:0; z-index:20; background:rgba(242,244,246,.9); backdrop-filter:blur(10px);
-    display:flex; align-items:center; justify-content:space-between; padding:14px 20px; padding-top:max(14px,env(safe-area-inset-top));
+    position:relative; z-index:20; background:var(--bg);
+    display:flex; align-items:center; justify-content:space-between; padding:12px 20px;
   }
-  .topbar h2{margin:0; font-size:20px; font-weight:800;}
+  /* 상단 버전바 */
+  .verbar{position:sticky; top:0; z-index:50; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 14px; padding-top:max(6px,env(safe-area-inset-top)); background:#111927; color:#C9D2DE;}
+  .verbar .ver{font-size:10.5px; line-height:1.35;}
+  .verbar .ver b{color:#fff; font-weight:800;}
+  .verbar .ver .vt{color:#8B95A1;}
+  .ver-actions{display:flex; gap:6px; flex:0 0 auto;}
+  .ver-btn{background:rgba(255,255,255,.13); color:#fff; border-radius:8px; padding:6px 9px; font-size:12px; line-height:1; display:flex; align-items:center; gap:4px; font-weight:600;}
+  .ver-btn .lbl{font-size:11px;}
+  .ver-btn.on{background:var(--green);}
+  .ver-btn.off{background:var(--red);}
+  /* 시간 휠 피커 */
+  .tp{position:relative; display:flex; align-items:center; justify-content:center; gap:2px; height:176px; margin:2px 0 8px; user-select:none;}
+  .tp-band{position:absolute; left:10%; right:10%; top:66px; height:44px; background:var(--blue-soft); border-radius:14px; pointer-events:none;}
+  .tp-col{position:relative; height:176px; overflow-y:scroll; scroll-snap-type:y mandatory; scrollbar-width:none; -ms-overflow-style:none; text-align:center; padding:66px 0;}
+  .tp-col::-webkit-scrollbar{display:none;}
+  .tp-col .it{height:44px; line-height:44px; scroll-snap-align:center; font-size:22px; font-weight:700; color:var(--t3); transition:color .12s, transform .12s;}
+  .tp-col .it.sel{color:var(--blue-dark); font-weight:800; transform:scale(1.06);}
+  .tp-col.ampm{width:64px;} .tp-col.hh{width:56px;} .tp-col.mm{width:56px;}
+  .tp-colon{font-size:22px; font-weight:800; color:var(--t2); padding-bottom:2px;}
+  /* 알람(푸시) 시점 칩 */
+  .alarm-chips{display:flex; gap:7px; flex-wrap:wrap;}
+  .alarm-chips button{padding:8px 12px; border-radius:10px; background:var(--bg); color:var(--t2); font-size:12.5px; font-weight:700;}
+  .alarm-chips button.sel{background:var(--blue); color:#fff;}
+  .topbar h2{margin:0; font-size:15px; font-weight:800;}
   .topbar .u{font-size:12px; color:var(--t3);}
   .icon-btn{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; background:var(--card); box-shadow:var(--shadow);}
   .view{padding:4px 16px 20px; animation:fade .25s;}
   @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
 
   .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:14px;}
-  .section-title{font-size:15px; font-weight:800; margin:20px 4px 10px; display:flex; align-items:center; gap:6px;}
+  .section-title{font-size:13px; font-weight:800; margin:20px 4px 10px; display:flex; align-items:center; gap:6px;}
   .muted{color:var(--t3);}
   .empty{text-align:center; color:var(--t3); padding:30px 10px; font-size:14px;}
   .empty .e-emoji{font-size:36px; display:block; margin-bottom:8px;}
 
   /* 대시보드 */
-  .greet{font-size:22px; font-weight:800; margin:6px 4px 2px;}
-  .greet-sub{color:var(--t2); margin:0 4px 14px; font-size:14px;}
+  .greet{font-size:16px; font-weight:800; margin:6px 4px 2px;}
+  .greet-sub{color:var(--t2); margin:0 4px 14px; font-size:12.5px;}
   .stat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
   .stat{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px;}
-  .stat .n{font-size:26px; font-weight:800;}
+  .stat .n{font-size:20px; font-weight:800;}
   .stat .l{font-size:13px; color:var(--t3); margin-top:2px;}
   .stat .ic{font-size:20px;}
   .todo-line{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
@@ -98,7 +124,7 @@
 
   /* 캘린더 */
   .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
-  .cal-head .m{font-size:18px; font-weight:800;}
+  .cal-head .m{font-size:15px; font-weight:800;}
   .cal-nav{display:flex; gap:8px;}
   .cal-nav button{width:34px; height:34px; border-radius:10px; background:var(--bg); font-size:16px;}
   .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
@@ -118,7 +144,7 @@
   .ev{display:flex; align-items:center; gap:12px; padding:14px; background:var(--card); border-radius:14px; box-shadow:var(--shadow); margin-bottom:10px;}
   .ev .bar{width:4px; align-self:stretch; border-radius:4px;}
   .ev .body{flex:1;}
-  .ev .body .t{font-size:15px; font-weight:600;}
+  .ev .body .t{font-size:13.5px; font-weight:600;}
   .ev .body .sub{font-size:12px; color:var(--t3); margin-top:2px;}
   .ev .chk{width:26px; height:26px; border-radius:50%; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff;}
   .ev .chk.on{background:var(--green); border-color:var(--green);}
@@ -129,7 +155,7 @@
   .idea-input input:focus{border-color:var(--blue);}
   .idea-input button{background:var(--blue); color:#fff; padding:0 18px; border-radius:12px; font-weight:700;}
   .item{background:var(--card); border-radius:14px; box-shadow:var(--shadow); padding:16px; margin-bottom:10px; position:relative;}
-  .item .txt{font-size:15px; line-height:1.5; white-space:pre-wrap; word-break:break-word;}
+  .item .txt{font-size:13.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word;}
   .item .meta{font-size:12px; color:var(--t3); margin-top:8px;}
   .item .del{position:absolute; top:12px; right:12px; color:var(--t3); font-size:18px; padding:4px;}
   .memo-card .mtitle{font-size:16px; font-weight:800; margin-bottom:6px; padding-right:24px;}
@@ -142,7 +168,7 @@
   .diary-body .dh{display:flex; align-items:center; gap:8px; margin-bottom:6px;}
   .diary-body .mood{font-size:24px;}
   .diary-body .ddate{font-size:13px; color:var(--t3); font-weight:600;}
-  .diary-body .dtitle{font-size:17px; font-weight:800; margin:2px 0 6px;}
+  .diary-body .dtitle{font-size:14.5px; font-weight:800; margin:2px 0 6px;}
   .diary-body .dtext{font-size:14px; line-height:1.6; color:var(--t2); white-space:pre-wrap; word-break:break-word;}
 
   /* FAB */
@@ -154,14 +180,14 @@
     border-top:1px solid var(--line); display:flex; padding-bottom:var(--safe-b);
   }
   .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:9px 0 8px; color:var(--t3); font-size:11px; font-weight:600;}
-  .tab .ti{font-size:22px; line-height:1;}
+  .tab .ti{font-size:20px; line-height:1;}
   .tab.active{color:var(--blue);}
 
   /* 모달 */
   .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; display:flex; align-items:flex-end; justify-content:center; animation:fade .2s;}
   .modal{background:#fff; width:100%; max-width:480px; border-radius:24px 24px 0 0; padding:22px 20px calc(22px + var(--safe-b)); max-height:92vh; overflow-y:auto; animation:slideup .28s;}
   @keyframes slideup{from{transform:translateY(40px);opacity:.6;}to{transform:none;opacity:1;}}
-  .modal h3{margin:0 0 16px; font-size:19px; font-weight:800;}
+  .modal h3{margin:0 0 16px; font-size:15px; font-weight:800;}
   .modal .field textarea{width:100%; padding:14px; border:1.5px solid var(--line); border-radius:12px; outline:none; resize:vertical; min-height:90px; line-height:1.5;}
   .modal .field textarea:focus,.modal .field input:focus{border-color:var(--blue);}
   .modal .field input[type=date],.modal .field input[type=time],.modal .field input[type=text]{width:100%; padding:14px; border:1.5px solid var(--line); border-radius:12px; outline:none; background:#fff;}
@@ -224,6 +250,13 @@
 
 <!-- 앱 -->
 <div id="app">
+  <div class="verbar">
+    <div class="ver">김비서 <b id="verNum">v1.1.0</b> <span class="vt">· 업데이트 <span id="verDate"></span></span></div>
+    <div class="ver-actions">
+      <button class="ver-btn" id="notifBtn" title="알림 허용">🔔<span class="lbl">알림</span></button>
+      <button class="ver-btn" id="refreshBtn" title="최신버전 받기">🔄<span class="lbl">새로고침</span></button>
+    </div>
+  </div>
   <div class="topbar">
     <div>
       <h2 id="pageTitle">대시보드</h2>
@@ -319,6 +352,16 @@ const MOODS = ["😀","🙂","😐","😔","😢","😡","😴","🥰"];
 const ADMIN_EMAIL = "admin@admin.com"; // 마스터(관리자) 계정 이메일
 let isAdmin = false;                 // 현재 로그인 계정이 마스터(관리자)인지
 let adminData = {};                  // 관리자 화면용: 전체 사용자 meta
+const APP_VERSION = "1.1.0";         // 앱 버전
+const BUILD_AT = "2026-07-27 14:02"; // 업데이트(빌드) 일시
+const ALARM_OPTS = [                 // 일정 알림(앱 푸시) 시점
+  {v:null, label:"없음"},
+  {v:0,    label:"정각"},
+  {v:10,   label:"10분 전"},
+  {v:30,   label:"30분 전"},
+  {v:60,   label:"1시간 전"},
+  {v:1440, label:"1일 전"}
+];
 
 /* =========================================================
    3. 인증
@@ -652,47 +695,84 @@ function calMove(dir){ calMonth+=dir; if(calMonth<0){calMonth=11;calYear--;} if(
 function calToday(){ const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); selectedDate=todayStr(); renderCal(); }
 function toggleDone(id,e){ e.stopPropagation(); const s=store.schedules[id]; if(s) refPath("schedules/"+id+"/done").set(!s.done); }
 
+function buildWheel(col, values, initialIndex){
+  const H=44;
+  col.innerHTML = values.map(v=>`<div class="it">${v}</div>`).join("");
+  const setSel=()=>{ const idx=Math.min(values.length-1,Math.max(0,Math.round(col.scrollTop/H))); [...col.children].forEach((c,i)=>c.classList.toggle("sel", i===idx)); };
+  col._get = ()=>Math.min(values.length-1,Math.max(0,Math.round(col.scrollTop/H)));
+  col.addEventListener("scroll", setSel, {passive:true});
+  const apply=()=>{ col.scrollTop=initialIndex*H; setSel(); };
+  apply(); requestAnimationFrame(apply); setTimeout(apply,60);
+}
 function scheduleModal(id, date){
   const editing = !!id;
-  const s = editing ? store.schedules[id] : {date:date||selectedDate||todayStr(), color:"blue", time:"", title:"", memo:""};
+  const s = editing ? store.schedules[id] : {date:date||selectedDate||todayStr(), color:"blue", time:"09:00", title:"", memo:"", alarm:null};
+  let h24=9, mm=0;
+  if(s.time && /^\d{1,2}:\d{2}$/.test(s.time)){ h24=+s.time.split(":")[0]; mm=+s.time.split(":")[1]; }
+  const ampm = h24>=12?1:0;
+  let h12 = h24%12; if(h12===0) h12=12;
+  const alarmSel = (s.alarm===undefined?null:s.alarm);
   openModal(`
     <h3>${editing?"일정 수정":"새 일정"}</h3>
     <div class="field"><label>제목</label><input id="mTitle" type="text" placeholder="무엇을 하나요?" value="${esc(s.title)}"></div>
-    <div class="row2">
-      <div class="field"><label>날짜</label><input id="mDate" type="date" value="${s.date}"></div>
-      <div class="field"><label>시간 (선택)</label><input id="mTime" type="time" value="${s.time||""}"></div>
+    <div class="field"><label>날짜</label><input id="mDate" type="date" value="${s.date}"></div>
+    <label style="display:block;font-size:13px;color:var(--t2);margin-bottom:0;font-weight:600;">시간</label>
+    <div class="tp">
+      <div class="tp-band"></div>
+      <div class="tp-col ampm" id="tpAmpm"></div>
+      <div class="tp-col hh" id="tpHH"></div>
+      <div class="tp-colon">:</div>
+      <div class="tp-col mm" id="tpMM"></div>
     </div>
-    <div class="field"><label>메모 (선택)</label><textarea id="mMemo" placeholder="상세 내용">${esc(s.memo||"")}</textarea></div>
+    <div class="field"><label>알림 (앱 푸시)</label>
+      <div class="alarm-chips" id="mAlarm">
+        ${ALARM_OPTS.map(o=>`<button data-a="${o.v===null?'null':o.v}" class="${alarmSel===o.v?'sel':''}" onclick="pickAlarm(${o.v===null?'null':o.v})">${o.label}</button>`).join("")}
+      </div>
+    </div>
     <div class="field"><label>색상</label>
       <div class="color-pick" id="mColor">
         ${Object.keys(EV_COLORS).map(c=>`<button data-c="${c}" class="${s.color===c?'sel':''}" style="background:${EV_COLORS[c]}" onclick="pickColor('${c}')"></button>`).join("")}
       </div>
     </div>
+    <div class="field"><label>메모 (선택)</label><textarea id="mMemo" placeholder="상세 내용">${esc(s.memo||"")}</textarea></div>
     <div class="modal-actions">
       ${editing?`<button class="btn-danger" onclick="delSchedule('${id}')">삭제</button>`:""}
+      <button class="btn-ghost" onclick="closeModal()">닫기</button>
       <button class="btn-primary" style="flex:1" onclick="saveSchedule('${id||""}')">저장</button>
     </div>
   `);
-  el("modalRoot")._color = s.color;
+  const root=el("modalRoot"); root._color=s.color; root._alarm=alarmSel;
+  buildWheel(el("tpAmpm"), ["오전","오후"], ampm);
+  buildWheel(el("tpHH"), Array.from({length:12},(_,i)=>String(i+1)), h12-1);
+  buildWheel(el("tpMM"), Array.from({length:60},(_,i)=>pad(i)), mm);
 }
 function pickColor(c){
   el("modalRoot")._color=c;
   document.querySelectorAll("#mColor button").forEach(b=>b.classList.toggle("sel", b.dataset.c===c));
 }
+function pickAlarm(v){
+  el("modalRoot")._alarm=v;
+  document.querySelectorAll("#mAlarm button").forEach(b=>{ const bv = b.dataset.a==="null"?null:Number(b.dataset.a); b.classList.toggle("sel", bv===v); });
+}
 function saveSchedule(id){
   const title=el("mTitle").value.trim();
   if(!title){ toast("제목을 입력해 주세요"); return; }
+  const ampmIdx=el("tpAmpm")._get(), h12=el("tpHH")._get()+1, mm=el("tpMM")._get();
+  let h24=h12%12; if(ampmIdx===1) h24+=12;
+  const root=el("modalRoot");
   const data={
     title,
     date:el("mDate").value,
-    time:el("mTime").value,
+    time:pad(h24)+":"+pad(mm),
     memo:el("mMemo").value.trim(),
-    color:el("modalRoot")._color||"blue"
+    color:root._color||"blue",
+    alarm:(root._alarm===undefined?null:root._alarm)
   };
   if(id){ data.done=store.schedules[id].done||false; refPath("schedules/"+id).update(data); }
   else{ data.done=false; data.createdAt=Date.now(); refPath("schedules").push(data); }
   selectedDate=data.date;
   closeModal(); toast("저장했어요");
+  setTimeout(checkAlarms, 300);
 }
 function delSchedule(id){
   confirmModal("일정 삭제","이 일정을 삭제할까요?",()=>{ refPath("schedules/"+id).remove(); closeModal(); toast("삭제했어요"); });
@@ -750,6 +830,7 @@ function memoModal(id){
     <div class="field"><label>내용</label><textarea id="mmContent" style="min-height:160px" placeholder="자유롭게 기록하세요">${esc(m.content)}</textarea></div>
     <div class="modal-actions">
       ${editing?`<button class="btn-danger" onclick="delMemo('${id}')">삭제</button>`:""}
+      <button class="btn-ghost" onclick="closeModal()">닫기</button>
       <button class="btn-primary" style="flex:1" onclick="saveMemo('${id||""}')">저장</button>
     </div>
   `);
@@ -806,6 +887,7 @@ function diaryModal(id){
     </div>
     <div class="modal-actions">
       ${editing?`<button class="btn-danger" onclick="delDiary('${id}')">삭제</button>`:""}
+      <button class="btn-ghost" onclick="closeModal()">닫기</button>
       <button class="btn-primary" style="flex:1" onclick="saveDiary('${id||""}')">저장</button>
     </div>
   `);
@@ -959,6 +1041,76 @@ window.addEventListener("appinstalled",()=>{ localStorage.setItem("kbInstalled",
 
 // iOS(사파리)는 beforeinstallprompt 미지원 → 접속 시 수동 추가 안내
 if(isIOS() && !isStandalone()){ setTimeout(()=>showInstallSheet("ios"), 1500); }
+
+/* =========================================================
+   상단 버전바 + 알림(앱 푸시) 스케줄러
+   ========================================================= */
+function forceRefresh(){
+  (async()=>{
+    try{ if("caches" in window){ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); } }catch(e){}
+    location.replace(location.origin + location.pathname + "?v=" + Date.now());
+  })();
+}
+function updateNotifBtn(){
+  const b=el("notifBtn"); if(!b) return;
+  const p = ("Notification" in window) ? Notification.permission : "unsupported";
+  b.classList.remove("on","off");
+  if(p==="granted"){ b.classList.add("on"); b.innerHTML='🔔<span class="lbl">알림 켜짐</span>'; }
+  else if(p==="denied"){ b.classList.add("off"); b.innerHTML='🔕<span class="lbl">알림 차단</span>'; }
+  else { b.innerHTML='🔔<span class="lbl">알림 허용</span>'; }
+}
+async function requestNotif(){
+  if(!("Notification" in window)){ toast("이 브라우저는 알림을 지원하지 않아요"); return; }
+  if(Notification.permission==="granted"){ toast("이미 알림이 켜져 있어요"); updateNotifBtn(); return; }
+  if(Notification.permission==="denied"){ toast("브라우저 설정에서 알림을 허용해 주세요"); return; }
+  try{
+    const p=await Notification.requestPermission(); updateNotifBtn();
+    if(p==="granted"){ toast("알림이 켜졌어요"); setTimeout(checkAlarms,300); }
+  }catch(e){ toast("알림 설정에 실패했어요"); }
+}
+function pruneFired(){
+  try{ const f=JSON.parse(localStorage.getItem("kbFired")||"{}"); const cut=Date.now()-2*86400000; let ch=false;
+    Object.keys(f).forEach(k=>{ const t=+String(k).split("@")[1]; if(t && t<cut){ delete f[k]; ch=true; } });
+    if(ch) localStorage.setItem("kbFired", JSON.stringify(f));
+  }catch(e){}
+}
+function showLocalNotif(s){
+  const off=(ALARM_OPTS.find(o=>o.v===s.alarm)||{}).label||"";
+  const body=`${fmtDateK(s.date)} ${s.time}${(off&&off!=="정각")?" ("+off+")":""}${s.memo?" · "+s.memo:""}`;
+  const opts={ body, icon:"icon-192.png", badge:"icon-192.png", tag:"sch-"+s.id, renotify:true };
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(reg=>reg.showNotification("📅 "+s.title, opts)).catch(()=>{ try{new Notification("📅 "+s.title, opts);}catch(e){} });
+    } else { new Notification("📅 "+s.title, opts); }
+  }catch(e){}
+}
+function checkAlarms(){
+  if(!uid || !("Notification" in window) || Notification.permission!=="granted") return;
+  const now=Date.now();
+  let fired; try{ fired=JSON.parse(localStorage.getItem("kbFired")||"{}"); }catch(e){ fired={}; }
+  let changed=false;
+  entries("schedules").forEach(s=>{
+    if(s.alarm===undefined || s.alarm===null || s.done || !s.time) return;
+    const dt=new Date(s.date+"T"+s.time+":00").getTime();
+    if(isNaN(dt)) return;
+    const at=dt - s.alarm*60000;
+    const key=s.id+"@"+at;
+    if(now>=at && now < at+6*60000 && !fired[key]){
+      showLocalNotif(s); fired[key]=1; changed=true;
+    }
+  });
+  if(changed) localStorage.setItem("kbFired", JSON.stringify(fired));
+}
+// 서비스워커(알림 표시/클릭용)
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+// 상단바 초기화
+el("verNum").textContent = "v"+APP_VERSION;
+el("verDate").textContent = BUILD_AT;
+el("notifBtn").onclick = requestNotif;
+el("refreshBtn").onclick = forceRefresh;
+updateNotifBtn();
+pruneFired();
+setInterval(checkAlarms, 30000);
 </script>
 </body>
 </html>
