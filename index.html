@@ -432,15 +432,17 @@ let adminData = {};                  // 관리자 화면용: 전체 사용자 me
 let adminFeedback = {};              // 관리자 화면용: 받은 개선 요청
 const VAPID_KEY = "BENo2skhOoMjI2novg8ofynfmgJZe_IntCxUPLHIDrlES5aBtuqDIQwJO5DYv4S3qRCp5gdKY6pU171xpOgKuEY"; // FCM 웹푸시 공개키
 let fcmToken = null;                 // FCM 등록 토큰(있으면 서버 푸시 사용)
+let pendingCompose = false;          // 위젯 딥링크로 '새 메모' 열기 대기
 let weatherData = null;              // 날씨 카드 데이터(캐시)
 let weatherExpanded = false;         // 날씨 카드 상세 펼침 여부
 let cityResultsCache = [];           // 도시 검색 결과 임시
 let holidays = {};                   // "YYYY-MM-DD" -> 공휴일명 (대한민국)
 const holYearsLoaded = new Set();    // 공휴일 로드한 연도
 const FIXED_HOL = {"01-01":"신정","03-01":"삼일절","05-05":"어린이날","06-06":"현충일","08-15":"광복절","10-03":"개천절","10-09":"한글날","12-25":"성탄절"};
-const APP_VERSION = "1.8.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 16:05"; // 업데이트(빌드) 일시
+const APP_VERSION = "1.8.1";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 16:30"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.8.1", d:"2026-07-27", items:["안드로이드 위젯 연동 준비 — 메모 빠른입력 딥링크"]},
   {v:"1.8.0", d:"2026-07-27", items:["메모 진행중/완료 상태 (완료는 목록 아래로, 알림도 울리지 않음)","메모 알림 시간 직접 지정(날짜+시간)"]},
   {v:"1.7.0", d:"2026-07-27", items:["메모에 색상(카테고리) 지정 — 기본 5색 + 추가/삭제, 색으로 필터","메모에 '~분 후 알림'(작성 후 N분 뒤 앱 푸시)"]},
   {v:"1.6.0", d:"2026-07-27", items:["대시보드 채팅형 빠른 입력(카테고리 선택→해당 메뉴 자동 추가)","캘린더에 대한민국 공휴일 표시","날씨를 상단 우측 작은 칩으로 이동(탭 시 상세 날씨)"]},
@@ -571,6 +573,7 @@ auth.onAuthStateChanged(async (user)=>{
     switchTab("dash");
     setupFCM();
     loadWeather();
+    if(pendingCompose) setTimeout(openComposeMemo, 500);
   }else{
     uid=null; isAdmin=false;
     el("adminTab").classList.add("hidden");
@@ -1653,6 +1656,17 @@ function showUpdateOverlay(){
 
 el("verInfo").onclick = showChangelog;
 el("feedbackBtn").onclick = feedbackModal;
+
+/* 안드로이드 위젯 딥링크: kimbiseo://compose/memo → 새 메모 열기 (앱 안에서만 동작) */
+function openComposeMemo(){ pendingCompose=false; if(!uid) return; switchTab("memo"); setTimeout(()=>memoModal(), 250); }
+try{
+  if(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App){
+    const CApp = window.Capacitor.Plugins.App;
+    const handle=(url)=>{ if(url && url.indexOf("compose/memo")>=0){ pendingCompose=true; if(uid) openComposeMemo(); } };
+    CApp.getLaunchUrl().then(r=>{ if(r&&r.url) handle(r.url); }).catch(()=>{});
+    CApp.addListener("appUrlOpen", d=>{ if(d&&d.url) handle(d.url); });
+  }
+}catch(e){}
 </script>
 </body>
 </html>

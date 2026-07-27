@@ -1,0 +1,10 @@
+{
+  "appId": "com.odols.kimbiseo",
+  "appName": "김비서",
+  "webDir": "www",
+  "server": {
+    "url": "https://odols7582.github.io/planner/",
+    "androidScheme": "https",
+    "cleartext": false
+  }
+}

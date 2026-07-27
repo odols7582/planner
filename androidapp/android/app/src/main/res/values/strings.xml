@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">김비서</string>
+    <string name="title_activity_main">김비서</string>
+    <string name="package_name">com.odols.kimbiseo</string>
+    <string name="custom_url_scheme">com.odols.kimbiseo</string>
+</resources>
