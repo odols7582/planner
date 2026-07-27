@@ -305,6 +305,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
 <script>
 /* =========================================================
@@ -367,9 +368,12 @@ const ADMIN_EMAIL = "admin@admin.com"; // 마스터(관리자) 계정 이메일
 let isAdmin = false;                 // 현재 로그인 계정이 마스터(관리자)인지
 let adminData = {};                  // 관리자 화면용: 전체 사용자 meta
 let adminFeedback = {};              // 관리자 화면용: 받은 개선 요청
-const APP_VERSION = "1.2.1";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 14:25"; // 업데이트(빌드) 일시
+const VAPID_KEY = "BENo2skhOoMjI2novg8ofynfmgJZe_IntCxUPLHIDrlES5aBtuqDIQwJO5DYv4S3qRCp5gdKY6pU171xpOgKuEY"; // FCM 웹푸시 공개키
+let fcmToken = null;                 // FCM 등록 토큰(있으면 서버 푸시 사용)
+const APP_VERSION = "1.3.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 14:30"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.3.0", d:"2026-07-27", items:["FCM 백그라운드 푸시 연동 — 앱을 꺼도 알림 도착","알림 아이콘을 홈 화면 아이콘과 통일"]},
   {v:"1.2.1", d:"2026-07-27", items:["일정에 '시간 상관없음(종일)' 옵션 추가","뒤로가기 시 모달만 닫히고 앱은 유지되도록 수정"]},
   {v:"1.2.0", d:"2026-07-27", items:["하단 네비바를 가계부 디자인으로 변경","일정 추가 화면 개선(시간 먼저·카드형 배치)","버전 클릭 시 변경 이력 표시","우측 상단 '개선 요청' 보내기 추가","새 버전 배포 시 업데이트 화면 자동 표시","뒤로가기로 앱이 종료되지 않도록"]},
   {v:"1.1.0", d:"2026-07-27", items:["가계부와 동일한 Noto Sans KR 글꼴 적용","일정 추가에 시간 휠 피커 + 알림(앱 푸시) 선택","상단 버전바(새로고침/알림 허용)","모든 모달에 닫기 버튼"]},
@@ -466,6 +470,7 @@ auth.onAuthStateChanged(async (user)=>{
     el("userLabel").onclick = isAdmin ? ()=>switchTab(currentTab==="admin" ? "dash" : "admin") : null;
     attachListeners();
     switchTab("dash");
+    setupFCM();
   }else{
     uid=null; isAdmin=false;
     el("adminTab").classList.add("hidden");
@@ -1116,8 +1121,25 @@ async function requestNotif(){
   if(Notification.permission==="denied"){ toast("브라우저 설정에서 알림을 허용해 주세요"); return; }
   try{
     const p=await Notification.requestPermission(); updateNotifBtn();
-    if(p==="granted"){ toast("알림이 켜졌어요"); setTimeout(checkAlarms,300); }
+    if(p==="granted"){ toast("알림이 켜졌어요"); setupFCM(); setTimeout(checkAlarms,300); }
   }catch(e){ toast("알림 설정에 실패했어요"); }
+}
+/* FCM: 토큰 발급·저장 + 포그라운드 메시지 처리 */
+async function setupFCM(){
+  try{
+    if(!uid || Notification.permission!=="granted" || typeof firebase==="undefined" || !firebase.messaging) return;
+    const reg = await navigator.serviceWorker.ready;
+    const messaging = firebase.messaging();
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if(token){ fcmToken=token; db.ref(`users/${uid}/fcmTokens/${token}`).set(Date.now()); }
+    messaging.onMessage(payload=>{
+      const n=(payload && payload.notification)||{};
+      showFgNotif(n.title||"📅 김비서", n.body||"");
+    });
+  }catch(e){ /* 미지원/실패 시 로컬 알림으로 폴백 */ }
+}
+function showFgNotif(title, body){
+  try{ navigator.serviceWorker.ready.then(reg=>reg.showNotification(title, {body, icon:"icon-192.png", badge:"icon-192.png"})); }catch(e){}
 }
 function pruneFired(){
   try{ const f=JSON.parse(localStorage.getItem("kbFired")||"{}"); const cut=Date.now()-2*86400000; let ch=false;
@@ -1137,6 +1159,7 @@ function showLocalNotif(s){
 }
 function checkAlarms(){
   if(!uid || !("Notification" in window) || Notification.permission!=="granted") return;
+  if(fcmToken) return;   // FCM(서버 푸시) 활성 시 로컬 알림 생략(중복 방지)
   const now=Date.now();
   let fired; try{ fired=JSON.parse(localStorage.getItem("kbFired")||"{}"); }catch(e){ fired={}; }
   let changed=false;
@@ -1154,7 +1177,7 @@ function checkAlarms(){
   if(changed) localStorage.setItem("kbFired", JSON.stringify(fired));
 }
 // 서비스워커(알림 표시/클릭용)
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("firebase-messaging-sw.js").catch(()=>{}); }
 // 상단바 초기화
 el("verNum").textContent = "v"+APP_VERSION;
 el("verDate").textContent = BUILD_AT;

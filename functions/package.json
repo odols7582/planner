@@ -1,0 +1,11 @@
+{
+  "name": "planner-functions",
+  "description": "김비서 일정 알림 FCM 발송",
+  "private": true,
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1"
+  }
+}
