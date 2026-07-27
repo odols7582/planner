@@ -216,6 +216,12 @@
   .mcolor-sw{width:30px; height:30px; border-radius:50%; border:3px solid transparent;}
   .mcolor-sw.sel{border-color:var(--t1);}
   .mcolor-add{width:30px; height:30px; border-radius:50%; border:2px dashed var(--line); color:var(--t3); display:flex; align-items:center; justify-content:center; font-size:16px;}
+  .mhead{display:flex; align-items:center; gap:9px; margin-bottom:6px; padding-right:24px;}
+  .mhead .mtitle{margin-bottom:0; padding-right:0;}
+  .mstatus{flex:0 0 auto; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; background:var(--bg); color:var(--t3);}
+  .mstatus.done{background:#E7F7EF; color:#12855C;}
+  .memo-card.done{opacity:.55;}
+  .memo-card.done .mtitle{text-decoration:line-through;}
 
   /* 일기 */
   .diary-card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px;}
@@ -346,9 +352,9 @@
     <div class="tabbar-inner">
       <button class="tab hidden" id="adminTab" data-tab="admin"><span class="ti">👑</span>관리자</button>
       <button class="tab active" data-tab="dash"><span class="ti">🏠</span>대시보드</button>
+      <button class="tab" data-tab="memo"><span class="ti">📝</span>메모</button>
       <button class="tab" data-tab="cal"><span class="ti">📅</span>일정</button>
       <button class="tab" data-tab="idea"><span class="ti">💡</span>아이디어</button>
-      <button class="tab" data-tab="memo"><span class="ti">📝</span>메모</button>
       <button class="tab" data-tab="diary"><span class="ti">📔</span>일기</button>
     </div>
   </div>
@@ -432,9 +438,10 @@ let cityResultsCache = [];           // 도시 검색 결과 임시
 let holidays = {};                   // "YYYY-MM-DD" -> 공휴일명 (대한민국)
 const holYearsLoaded = new Set();    // 공휴일 로드한 연도
 const FIXED_HOL = {"01-01":"신정","03-01":"삼일절","05-05":"어린이날","06-06":"현충일","08-15":"광복절","10-03":"개천절","10-09":"한글날","12-25":"성탄절"};
-const APP_VERSION = "1.7.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 15:45"; // 업데이트(빌드) 일시
+const APP_VERSION = "1.8.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 16:05"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.8.0", d:"2026-07-27", items:["메모 진행중/완료 상태 (완료는 목록 아래로, 알림도 울리지 않음)","메모 알림 시간 직접 지정(날짜+시간)"]},
   {v:"1.7.0", d:"2026-07-27", items:["메모에 색상(카테고리) 지정 — 기본 5색 + 추가/삭제, 색으로 필터","메모에 '~분 후 알림'(작성 후 N분 뒤 앱 푸시)"]},
   {v:"1.6.0", d:"2026-07-27", items:["대시보드 채팅형 빠른 입력(카테고리 선택→해당 메뉴 자동 추가)","캘린더에 대한민국 공휴일 표시","날씨를 상단 우측 작은 칩으로 이동(탭 시 상세 날씨)"]},
   {v:"1.5.0", d:"2026-07-27", items:["날씨 카드에 시간대별 미니 예보 추가","카드 탭 시 습도·바람·주간예보 상세 펼침","날씨 위치 직접 선택(도시 검색) 기능"]},
@@ -469,14 +476,16 @@ const DEFAULT_MEMO_COLORS = [        // 메모 기본 색상 5종
 ];
 let memoColors = [];                 // 사용자 메모 색상 팔레트
 let memoFilter = "";                 // 메모 색상 필터(hex, "" = 전체)
-const MEMO_REMIND = [                 // 메모 작성 후 ~분 뒤 알림
-  {v:null, label:"안 함"},
-  {v:0,    label:"끄기"},
-  {v:5,    label:"5분 후"},
-  {v:10,   label:"10분 후"},
-  {v:30,   label:"30분 후"},
-  {v:60,   label:"1시간 후"}
+const MEMO_REMIND = [                 // 메모 알림 시점
+  {v:null,     label:"안 함"},
+  {v:0,        label:"끄기"},
+  {v:5,        label:"5분 후"},
+  {v:10,       label:"10분 후"},
+  {v:30,       label:"30분 후"},
+  {v:60,       label:"1시간 후"},
+  {v:"custom", label:"직접 지정"}
 ];
+function toLocalDT(ts){ const d=new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 
 /* =========================================================
    3. 인증
@@ -878,11 +887,10 @@ function renderDash(){
   const today=todayStr();
   const sched=entries("schedules");
   const todays=sched.filter(s=>s.date===today).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
-  const upcoming=sched.filter(s=>s.date>today && !s.done).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
   const doneCount=todays.filter(s=>s.done).length;
-  const ideas=entries("ideas");
-  const diaries=entries("diaries");
-  const hasDiaryToday = diaries.some(d=>d.date===today);
+  const memos=entries("memos");
+  const memoDoing=memos.filter(m=>!m.done).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const memoDone=memos.filter(m=>m.done).length;
   const h=new Date().getHours();
   const greetWord = h<6?"늦은 밤이에요":h<12?"좋은 아침이에요":h<18?"좋은 오후예요":"편안한 저녁이에요";
 
@@ -900,13 +908,6 @@ function renderDash(){
       </div>
     </div>
 
-    <div class="stat-grid">
-      <div class="stat"><div class="ic">📅</div><div class="n">${todays.length}</div><div class="l">오늘 일정</div></div>
-      <div class="stat"><div class="ic">💡</div><div class="n">${ideas.length}</div><div class="l">아이디어</div></div>
-      <div class="stat"><div class="ic">📝</div><div class="n">${entries("memos").length}</div><div class="l">메모</div></div>
-      <div class="stat"><div class="ic">📔</div><div class="n">${diaries.length}</div><div class="l">일기</div></div>
-    </div>
-
     <div class="section-title">📅 오늘의 일정</div>
     <div class="card">
       ${todays.length ? todays.map(s=>`
@@ -918,24 +919,16 @@ function renderDash(){
         : `<div class="empty"><span class="e-emoji">🌤️</span>오늘 등록된 일정이 없어요</div>`}
     </div>
 
-    ${upcoming.length?`
-    <div class="section-title">⏭️ 다가오는 일정</div>
+    <div class="section-title">📝 메모 현황 <span class="muted" style="font-weight:500;font-size:12px;">진행중 ${memoDoing.length} · 완료 ${memoDone}</span></div>
     <div class="card">
-      ${upcoming.map(s=>`
-        <div class="todo-line">
-          <span class="dot" style="background:${EV_COLORS[s.color]||EV_COLORS.blue}"></span>
-          <span class="tt">${esc(s.title)}</span>
-          <span class="tm">${fmtDateK(s.date).replace(/\s\(.\)/,"")}</span>
-        </div>`).join("")}
-    </div>`:""}
-
-    ${!hasDiaryToday?`
-    <div class="section-title">📔 오늘의 기록</div>
-    <div class="card" style="text-align:center; cursor:pointer" onclick="switchTab('diary'); setTimeout(()=>diaryModal(),250)">
-      <div style="font-size:15px; font-weight:700; margin-bottom:4px;">오늘 하루는 어땠나요?</div>
-      <div class="muted" style="font-size:13px;">탭하여 오늘의 일기를 남겨보세요 ✍️</div>
-    </div>`:""}
-  `;
+      ${memoDoing.length ? memoDoing.slice(0,6).map(m=>`
+        <div class="todo-line" style="cursor:pointer" onclick="switchTab('memo');setTimeout(()=>memoModal('${m.id}'),200)">
+          <span class="dot" style="background:${m.color||"#D0D5DD"}"></span>
+          <span class="tt">${esc(m.title)||esc((m.content||"").slice(0,20))||"(제목 없음)"}</span>
+          <span class="tm">${(m.remindAt&&!m.notified&&m.remindAt>Date.now())?"⏰":""}</span>
+        </div>`).join("") + (memoDoing.length>6?`<div class="muted" style="font-size:12px;text-align:center;padding-top:8px;">외 ${memoDoing.length-6}건</div>`:"")
+        : `<div class="empty"><span class="e-emoji">✅</span>진행중인 메모가 없어요</div>`}
+    </div>`;
 }
 
 /* =========================================================
@@ -1164,7 +1157,7 @@ function delIdea(id){ refPath("ideas/"+id).remove(); }
    ========================================================= */
 function renderMemo(){
   const v=el("viewMemo");
-  let list=entries("memos").sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  let list=entries("memos").sort((a,b)=> (a.done?1:0)-(b.done?1:0) || (b.updatedAt||0)-(a.updatedAt||0));
   if(memoFilter) list=list.filter(m=>(m.color||"")===memoFilter);
   const filters=`<div class="mfilter">
     <button class="${memoFilter===""?"sel":""}" onclick="setMemoFilter('')">전체</button>
@@ -1172,20 +1165,25 @@ function renderMemo(){
     <button onclick="colorManageModal()" style="margin-left:auto;">🎨 색 관리</button>
   </div>`;
   v.innerHTML = filters + (list.length? list.map(m=>`
-      <div class="item memo-card" style="border-left:5px solid ${m.color||"#D0D5DD"}" onclick="memoModal('${m.id}')">
+      <div class="item memo-card ${m.done?"done":""}" style="border-left:5px solid ${m.color||"#D0D5DD"}" onclick="memoModal('${m.id}')">
         <button class="del" onclick="delMemo('${m.id}',event)">×</button>
-        <div class="mtitle">${esc(m.title)||"(제목 없음)"}</div>
+        <div class="mhead">
+          <button class="mstatus ${m.done?"done":""}" onclick="toggleMemoDone('${m.id}',event)">${m.done?"완료":"진행중"}</button>
+          <div class="mtitle">${esc(m.title)||"(제목 없음)"}</div>
+        </div>
         <div class="txt">${esc(m.content)}</div>
-        <div class="meta">${relTime(m.updatedAt||0)}</div>
+        <div class="meta">${relTime(m.updatedAt||0)}${(m.remindAt&&!m.notified&&!m.done&&m.remindAt>Date.now())?` · ⏰ ${fmtFull(m.remindAt)}`:""}</div>
       </div>`).join("")
     : `<div class="empty"><span class="e-emoji">📝</span>${memoFilter?"이 색상의 메모가 없어요":"메모가 없어요<br>색으로 분류해 기록해 보세요<br><br>우측 하단 <b>+</b> 버튼으로 추가"}</div>`);
 }
 function setMemoFilter(hex){ memoFilter=hex; renderMemo(); }
+function toggleMemoDone(id,e){ e.stopPropagation(); const m=store.memos[id]; if(m) refPath("memos/"+id+"/done").set(!m.done); }
 function memoModal(id){
   const editing=!!id;
   const def=(memoColors[0]&&memoColors[0].hex)||"#3182F6";
   const m=editing?store.memos[id]:{title:"",content:"",color:def};
   const cur=m.color||def;
+  const initRem=(editing && m.remindAt && m.remindAt>Date.now())?"custom":null;
   openModal(`
     <h3>${editing?"메모 수정":"새 메모"}</h3>
     <div class="field"><label>제목</label><input id="mmTitle" type="text" placeholder="예: OO 사이트 계정" value="${esc(m.title)}"></div>
@@ -1196,11 +1194,13 @@ function memoModal(id){
       </div>
     </div>
     <div class="field"><label>내용</label><textarea id="mmContent" style="min-height:150px" placeholder="자유롭게 기록하세요">${esc(m.content)}</textarea></div>
-    <div class="field"><label>알림 (작성 후 ~분 뒤 앱 푸시)</label>
+    <div class="field"><label>알림 (앱 푸시) · 1시간 후 이후는 '직접 지정'</label>
       <div class="alarm-chips" id="mmRemind">
-        ${MEMO_REMIND.map(o=>`<button data-r="${o.v===null?"null":o.v}" class="${o.v===null?"sel":""}" onclick="pickMemoRemind(${o.v===null?"null":o.v})">${o.label}</button>`).join("")}
+        ${MEMO_REMIND.map(o=>{const arg=o.v===null?"null":(typeof o.v==="string"?"'"+o.v+"'":o.v); return `<button data-r="${o.v===null?"null":o.v}" class="${o.v===initRem?"sel":""}" onclick="pickMemoRemind(${arg})">${o.label}</button>`;}).join("")}
       </div>
-      ${(editing && m.remindAt && m.remindAt>Date.now())?`<div class="muted" style="font-size:11.5px;margin-top:6px;">현재 예약됨: ${fmtFull(m.remindAt)} · ('끄기'로 취소)</div>`:""}
+      <div id="mmCustomWrap" style="display:${initRem==="custom"?"block":"none"};margin-top:8px;">
+        <input type="datetime-local" id="mmCustomAt" style="width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;outline:none;background:#fff;">
+      </div>
     </div>
     <div class="modal-actions">
       ${editing?`<button class="btn-danger" onclick="delMemo('${id}')">삭제</button>`:""}
@@ -1209,11 +1209,13 @@ function memoModal(id){
     </div>
   `);
   el("modalRoot")._memoColor=cur;
-  el("modalRoot")._memoRemind=null;
+  el("modalRoot")._memoRemind=initRem;
+  const cat=el("mmCustomAt"); if(cat){ cat.value=toLocalDT((editing&&m.remindAt&&m.remindAt>Date.now())?m.remindAt:(Date.now()+3600000)); cat.min=toLocalDT(Date.now()); }
 }
 function pickMemoRemind(v){
   el("modalRoot")._memoRemind=v;
-  document.querySelectorAll("#mmRemind button").forEach(b=>{ const bv=b.dataset.r==="null"?null:Number(b.dataset.r); b.classList.toggle("sel", bv===v); });
+  document.querySelectorAll("#mmRemind button").forEach(b=>{ const r=b.dataset.r; const bv=r==="null"?null:(r==="custom"?"custom":Number(r)); b.classList.toggle("sel", bv===v); });
+  const w=el("mmCustomWrap"); if(w) w.style.display=(v==="custom")?"block":"none";
 }
 function pickMemoColor(hex){
   el("modalRoot")._memoColor=hex;
@@ -1225,14 +1227,17 @@ function saveMemo(id){
   if(!title && !content){ toast("내용을 입력해 주세요"); return; }
   const data={title, content, color:el("modalRoot")._memoColor||"#3182F6", updatedAt:Date.now()};
   const rem=el("modalRoot")._memoRemind;
-  if(typeof rem==="number"){
+  if(rem==="custom"){
+    const val=el("mmCustomAt").value;
+    if(val){ const ts=new Date(val).getTime(); if(isNaN(ts)||ts<Date.now()-60000){ toast("알림 시간을 미래로 지정해 주세요"); return; } data.remindAt=ts; data.notified=false; }
+  } else if(typeof rem==="number"){
     if(rem>0){ data.remindAt=Date.now()+rem*60000; data.notified=false; }
     else { data.remindAt=null; data.notified=null; }   // 끄기
   }   // rem===null → 기존 알림 그대로 유지
   if(id) refPath("memos/"+id).update(data);
-  else { data.createdAt=Date.now(); refPath("memos").push(data); }
+  else { data.createdAt=Date.now(); data.done=false; refPath("memos").push(data); }
   closeModal();
-  toast(data.remindAt ? Math.round((data.remindAt-Date.now())/60000)+"분 후 알림 예약!" : "저장했어요");
+  toast(data.remindAt ? fmtFull(data.remindAt)+" 알림 예약!" : "저장했어요");
   setTimeout(checkAlarms, 300);
 }
 function memoColorListHTML(){
@@ -1552,7 +1557,7 @@ function checkAlarms(){
     }
   });
   entries("memos").forEach(m=>{
-    if(!m.remindAt || m.notified) return;
+    if(!m.remindAt || m.notified || m.done) return;
     const at=Number(m.remindAt); if(isNaN(at)) return;
     const key="memo@"+m.id+"@"+at;
     if(now>=at && now < at+6*60000 && !fired[key]){

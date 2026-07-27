@@ -49,7 +49,7 @@ exports.sendScheduleAlarms = onSchedule(
       const memos = memSnap.val() || {};
       for (const mid of Object.keys(memos)) {
         const m = memos[mid];
-        if (!m || !m.remindAt || m.notified) continue;
+        if (!m || !m.remindAt || m.notified || m.done) continue;
         const at = Number(m.remindAt);
         if (!isNaN(at) && now >= at && now < at + 6 * 60000) {
           await sendMemoAndMark(db, uid, mid, tokens, m);
