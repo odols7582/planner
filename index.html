@@ -99,6 +99,8 @@
   .allday-row input{width:20px; height:20px; accent-color:var(--blue);}
   .tp.dim{opacity:.32; pointer-events:none;}
   .topbar h2{margin:0; font-size:15px; font-weight:800;}
+  .top-right{display:flex; align-items:center; gap:8px;}
+  .weather-chip{display:flex; align-items:center; gap:4px; background:var(--card); box-shadow:var(--shadow); border-radius:14px; padding:7px 12px; font-size:13px; font-weight:800; color:var(--t1);}
   .topbar .u{font-size:12px; color:var(--t3);}
   .icon-btn{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; background:var(--card); box-shadow:var(--shadow);}
   .view{padding:4px 16px 20px; animation:fade .25s;}
@@ -112,6 +114,14 @@
 
   /* 대시보드 */
   .greet{font-size:16px; font-weight:800; margin:6px 4px 2px;}
+  .qadd{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:12px; margin-bottom:14px;}
+  .qadd-cats{display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;}
+  .qadd-cats button{padding:6px 11px; border-radius:10px; background:var(--bg); color:var(--t2); font-size:12px; font-weight:700;}
+  .qadd-cats button.sel{background:var(--blue); color:#fff;}
+  .qadd-row{display:flex; gap:8px;}
+  .qadd-row input{flex:1; padding:12px; border:1.5px solid var(--line); border-radius:12px; outline:none; background:#fff;}
+  .qadd-row input:focus{border-color:var(--blue);}
+  .qadd-row button{background:var(--blue); color:#fff; padding:0 16px; border-radius:12px; font-weight:700;}
   .greet-sub{color:var(--t2); margin:0 4px 14px; font-size:12.5px;}
   /* 날씨 카드 (배경은 날씨에 따라 변경) */
   .weather{border-radius:20px; padding:18px; color:#fff; margin:2px 0 16px; position:relative; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.13);}
@@ -171,6 +181,10 @@
   .cal-cell.sun{color:var(--red);}
   .cal-cell.sat{color:var(--blue);}
   .cal-cell.sel.sun,.cal-cell.sel.sat{color:#fff;}
+  .cal-cell.hol{color:var(--red);}
+  .cal-cell.sel.hol{color:#fff;}
+  .cal-hol{font-size:8px; color:var(--red); font-weight:700; line-height:1.05; margin-top:1px; max-width:100%; padding:0 1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .cal-cell.sel .cal-hol{color:#fff;}
   .cal-dots{display:flex; gap:2px; margin-top:3px; flex-wrap:wrap; justify-content:center; max-width:90%;}
   .cal-dots i{width:5px; height:5px; border-radius:50%; display:block;}
   .day-list-head{display:flex; align-items:center; justify-content:space-between; margin:18px 4px 8px;}
@@ -305,7 +319,10 @@
       <h2 id="pageTitle">대시보드</h2>
       <div class="u" id="userLabel"></div>
     </div>
-    <button class="icon-btn" id="logoutBtn" title="로그아웃">↩</button>
+    <div class="top-right">
+      <button class="weather-chip hidden" id="weatherChip" onclick="weatherDetailModal()" title="날씨"></button>
+      <button class="icon-btn" id="logoutBtn" title="로그아웃">↩</button>
+    </div>
   </div>
 
   <div id="viewAdmin" class="view hidden"></div>
@@ -404,9 +421,13 @@ let fcmToken = null;                 // FCM 등록 토큰(있으면 서버 푸�
 let weatherData = null;              // 날씨 카드 데이터(캐시)
 let weatherExpanded = false;         // 날씨 카드 상세 펼침 여부
 let cityResultsCache = [];           // 도시 검색 결과 임시
-const APP_VERSION = "1.5.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
-const BUILD_AT = "2026-07-27 15:00"; // 업데이트(빌드) 일시
+let holidays = {};                   // "YYYY-MM-DD" -> 공휴일명 (대한민국)
+const holYearsLoaded = new Set();    // 공휴일 로드한 연도
+const FIXED_HOL = {"01-01":"신정","03-01":"삼일절","05-05":"어린이날","06-06":"현충일","08-15":"광복절","10-03":"개천절","10-09":"한글날","12-25":"성탄절"};
+const APP_VERSION = "1.6.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 15:20"; // 업데이트(빌드) 일시
 const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.6.0", d:"2026-07-27", items:["대시보드 채팅형 빠른 입력(카테고리 선택→해당 메뉴 자동 추가)","캘린더에 대한민국 공휴일 표시","날씨를 상단 우측 작은 칩으로 이동(탭 시 상세 날씨)"]},
   {v:"1.5.0", d:"2026-07-27", items:["날씨 카드에 시간대별 미니 예보 추가","카드 탭 시 습도·바람·주간예보 상세 펼침","날씨 위치 직접 선택(도시 검색) 기능"]},
   {v:"1.4.0", d:"2026-07-27", items:["대시보드에 실시간 날씨 카드 추가(날씨에 따라 배경 변경)","알림 전송 우선순위 상향(제 시각에 도착하도록)"]},
   {v:"1.3.0", d:"2026-07-27", items:["FCM 백그라운드 푸시 연동 — 앱을 꺼도 알림 도착","알림 아이콘을 홈 화면 아이콘과 통일"]},
@@ -423,6 +444,13 @@ const ALARM_OPTS = [                 // 일정 알림(앱 푸시) 시점
   {v:60,   label:"1시간 전"},
   {v:1440, label:"1일 전"}
 ];
+const QCATS = [                      // 대시보드 빠른 입력 카테고리
+  {k:"idea",     emoji:"💡", name:"아이디어", ph:"떠오르는 생각을 적어보세요"},
+  {k:"memo",     emoji:"📝", name:"메모",     ph:"메모할 내용을 적어보세요"},
+  {k:"schedule", emoji:"📅", name:"일정",     ph:"오늘 할 일 (종일 일정으로 추가)"},
+  {k:"diary",    emoji:"📔", name:"일기",     ph:"오늘 있었던 일을 적어보세요"}
+];
+let quickCat = "idea";
 
 /* =========================================================
    3. 인증
@@ -678,7 +706,13 @@ function buildDaily(d){
   }
   return out;
 }
-function weatherCardHTML(){
+function updateWeatherChip(){
+  const c=el("weatherChip"); if(!c) return;
+  if(!weatherData){ c.classList.add("hidden"); return; }
+  c.innerHTML=`${weatherData.emoji} ${weatherData.temp}°`;
+  c.classList.remove("hidden");
+}
+function weatherFullCard(){
   if(!weatherData) return `<div class="weather loading">🌤️ 날씨 불러오는 중…</div>`;
   const w=weatherData;
   let hourly="";
@@ -689,28 +723,30 @@ function weatherCardHTML(){
       return `<div class="w-hcol"><span class="w-ht">${x.temp}°</span><span class="w-hbar" style="height:${hgt}px"></span><span class="w-htime">${esc(x.time)}</span></div>`;
     }).join("")+`</div>`;
   }
-  let detail="";
-  if(weatherExpanded){
-    const wk=(w.daily||[]).map(d=>`<div class="w-day"><span class="w-dn">${esc(d.wname)}</span><span class="w-de">${d.emoji}</span><span class="w-dmax">${d.max}°</span><span class="w-dmin">${d.min}°</span></div>`).join("");
-    detail=`<div class="w-detail">
-      <div class="w-stats"><span>💧 습도 ${w.humidity!=null?w.humidity+"%":"-"}</span><span>💨 바람 ${w.wind!=null?w.wind+"m/s":"-"}</span></div>
-      <div class="w-week">${wk}</div>
-    </div>`;
-  }
-  return `<div class="weather ${w.cls}" onclick="toggleWeather()">
-    <div class="w-top">
-      <span class="w-loc">📍 ${esc(w.city||"현재 위치")}</span>
-      <span class="w-top-r"><button class="w-citybtn" onclick="event.stopPropagation();cityModal()">위치 변경</button><span class="w-emoji">${w.emoji}</span></span>
-    </div>
+  const wk=(w.daily||[]).map(d=>`<div class="w-day"><span class="w-dn">${esc(d.wname)}</span><span class="w-de">${d.emoji}</span><span class="w-dmax">${d.max}°</span><span class="w-dmin">${d.min}°</span></div>`).join("");
+  return `<div class="weather ${w.cls}" style="cursor:default;box-shadow:none;">
+    <div class="w-top"><span class="w-loc">📍 ${esc(w.city||"현재 위치")}</span><span class="w-emoji">${w.emoji}</span></div>
     <div class="w-temp">${w.temp}°</div>
     <div class="w-desc">${esc(w.label)}</div>
     ${(w.max!=null&&w.min!=null)?`<div class="w-range">최고 ${w.max}° · 최저 ${w.min}°</div>`:""}
     ${hourly}
-    ${detail}
-    <div class="w-more">${weatherExpanded?"접기 ▴":"상세 보기 ▾"}</div>
+    <div class="w-detail">
+      <div class="w-stats"><span>💧 습도 ${w.humidity!=null?w.humidity+"%":"-"}</span><span>💨 바람 ${w.wind!=null?w.wind+"m/s":"-"}</span></div>
+      <div class="w-week">${wk}</div>
+    </div>
   </div>`;
 }
-function toggleWeather(){ weatherExpanded=!weatherExpanded; const w=el("weatherWrap"); if(w) w.innerHTML=weatherCardHTML(); }
+function weatherDetailModal(){
+  if(!weatherData){ toast("날씨를 불러오는 중이에요"); return; }
+  openModal(`
+    <h3>오늘의 날씨</h3>
+    ${weatherFullCard()}
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn-ghost" onclick="cityModal()">위치 변경</button>
+      <button class="btn-primary" style="flex:1" onclick="closeModal()">닫기</button>
+    </div>
+  `);
+}
 async function loadWeather(){
   try{
     let lat=37.5665, lon=126.9780, cityName=null, useGeo=true;
@@ -737,8 +773,8 @@ async function loadWeather(){
       hourly: buildHourly(j.hourly, cur.time),
       daily: buildDaily(day)
     };
-    const el2=el("weatherWrap"); if(el2) el2.innerHTML=weatherCardHTML();
-  }catch(e){ const el2=el("weatherWrap"); if(el2) el2.innerHTML=""; }
+    updateWeatherChip();
+  }catch(e){ updateWeatherChip(); }
 }
 function cityModal(){
   openModal(`
@@ -772,19 +808,35 @@ function pickCityIdx(i){
   const r=cityResultsCache[i]; if(!r) return;
   localStorage.setItem("kbWeatherLoc", JSON.stringify({lat:r.latitude, lon:r.longitude, name:r.name}));
   closeModal(); weatherData=null; weatherExpanded=false;
-  const w=el("weatherWrap"); if(w) w.innerHTML=weatherCardHTML();
+  updateWeatherChip();
   loadWeather(); toast(r.name+"(으)로 설정했어요");
 }
 function useCurrentLocation(){
   localStorage.removeItem("kbWeatherLoc");
   closeModal(); weatherData=null; weatherExpanded=false;
-  const w=el("weatherWrap"); if(w) w.innerHTML=weatherCardHTML();
+  updateWeatherChip();
   loadWeather(); toast("현재 위치로 설정했어요");
 }
 
 /* =========================================================
    6. 대시보드
    ========================================================= */
+function setQuickCat(k){
+  quickCat=k;
+  document.querySelectorAll(".qadd-cats button").forEach(b=>b.classList.toggle("sel", b.dataset.k===k));
+  const inp=el("qaInput"); if(inp){ const c=QCATS.find(x=>x.k===k); inp.placeholder=c?c.ph:""; inp.focus(); }
+}
+function quickAdd(){
+  const inp=el("qaInput"); if(!inp) return;
+  const t=inp.value.trim(); if(!t) return;
+  const now=Date.now(), today=todayStr();
+  if(quickCat==="idea") refPath("ideas").push({text:t, createdAt:now});
+  else if(quickCat==="memo") refPath("memos").push({title:t.split("\n")[0].slice(0,24), content:t, updatedAt:now, createdAt:now});
+  else if(quickCat==="schedule") refPath("schedules").push({title:t, date:today, time:"", allday:true, done:false, color:"blue", alarm:null, createdAt:now});
+  else if(quickCat==="diary") refPath("diaries").push({date:today, mood:"🙂", title:"", content:t, photos:[], createdAt:now, updatedAt:now});
+  inp.value="";
+  toast(((QCATS.find(c=>c.k===quickCat)||{}).name||"")+"에 추가했어요");
+}
 function renderDash(){
   const v=el("viewDash");
   const today=todayStr();
@@ -799,9 +851,18 @@ function renderDash(){
   const greetWord = h<6?"늦은 밤이에요":h<12?"좋은 아침이에요":h<18?"좋은 오후예요":"편안한 저녁이에요";
 
   v.innerHTML = `
-    <div id="weatherWrap">${weatherCardHTML()}</div>
     <div class="greet">${greetWord}, ${esc(profileName)} 님 👋</div>
     <div class="greet-sub">오늘은 ${fmtDateK(today)}${todays.length?` · 일정 ${todays.length}개 (${doneCount} 완료)`:""}</div>
+
+    <div class="qadd">
+      <div class="qadd-cats">
+        ${QCATS.map(c=>`<button data-k="${c.k}" class="${quickCat===c.k?'sel':''}" onclick="setQuickCat('${c.k}')">${c.emoji} ${c.name}</button>`).join("")}
+      </div>
+      <div class="qadd-row">
+        <input id="qaInput" type="text" placeholder="${(QCATS.find(c=>c.k===quickCat)||{}).ph||''}" onkeydown="if(event.key==='Enter')quickAdd()">
+        <button onclick="quickAdd()">전송</button>
+      </div>
+    </div>
 
     <div class="stat-grid">
       <div class="stat"><div class="ic">📅</div><div class="n">${todays.length}</div><div class="l">오늘 일정</div></div>
@@ -842,12 +903,33 @@ function renderDash(){
 }
 
 /* =========================================================
+   6-1. 대한민국 공휴일 (Nager.Date 무료 API + 고정 공휴일 폴백)
+   ========================================================= */
+function loadHolidays(year){
+  if(holYearsLoaded.has(year)) return;
+  holYearsLoaded.add(year);
+  Object.keys(FIXED_HOL).forEach(md=>{ if(!holidays[year+"-"+md]) holidays[year+"-"+md]=FIXED_HOL[md]; });   // 고정 공휴일 즉시 반영
+  try{ const c=localStorage.getItem("kbHol_"+year); if(c){ Object.assign(holidays, JSON.parse(c)); } }catch(e){}
+  fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    const map={};
+    arr.forEach(h=>{ if(h.date) map[h.date]=h.localName||h.name; });
+    Object.assign(holidays, map);
+    try{ localStorage.setItem("kbHol_"+year, JSON.stringify(map)); }catch(e){}
+    if(currentTab==="cal") renderCal();
+  }).catch(()=>{ holYearsLoaded.delete(year); });
+}
+
+/* =========================================================
    7. 일정관리 (캘린더)
    ========================================================= */
 function renderCal(){
   const v=el("viewCal");
   const now=new Date();
   if(calYear===undefined){ calYear=now.getFullYear(); calMonth=now.getMonth(); selectedDate=todayStr(); }
+  loadHolidays(calYear);
+  if(calMonth===0) loadHolidays(calYear-1);
+  if(calMonth===11) loadHolidays(calYear+1);
 
   const first=new Date(calYear,calMonth,1);
   const startDow=first.getDay();
@@ -871,10 +953,13 @@ function renderCal(){
     const dateStr=`${cellY}-${pad(cellM+1)}-${pad(dayNum)}`;
     const dow=(i%7);
     if(dow===0)cls+=" sun"; if(dow===6)cls+=" sat";
+    const holName = holidays[dateStr];
+    if(holName && inMonth) cls+=" hol";
     if(dateStr===today)cls+=" today";
     if(dateStr===selectedDate)cls+=" sel";
     const dots=(byDate[dateStr]||[]).slice(0,3).map(c=>`<i style="background:${EV_COLORS[c]||EV_COLORS.blue}"></i>`).join("");
-    cells+=`<div class="${cls}" onclick="selectDay('${dateStr}')">${dayNum}<div class="cal-dots">${dots}</div></div>`;
+    const holLabel = (holName && inMonth) ? `<div class="cal-hol">${esc(holName)}</div>` : "";
+    cells+=`<div class="${cls}" onclick="selectDay('${dateStr}')">${dayNum}${holLabel}<div class="cal-dots">${dots}</div></div>`;
   }
 
   const dayEvents=entries("schedules").filter(s=>s.date===selectedDate)
@@ -894,7 +979,7 @@ function renderCal(){
     </div>
 
     <div class="day-list-head">
-      <div class="d">${fmtDateK(selectedDate)}</div>
+      <div class="d">${fmtDateK(selectedDate)}${holidays[selectedDate]?` <span style="color:var(--red);font-weight:800;">· ${esc(holidays[selectedDate])}</span>`:""}</div>
       <button class="add-mini" onclick="scheduleModal(null,'${selectedDate}')">+ 일정 추가</button>
     </div>
     <div>
