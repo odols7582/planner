@@ -74,7 +74,7 @@
   }
   /* 상단 버전바 */
   .verbar{position:sticky; top:0; z-index:50; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 14px; padding-top:max(6px,env(safe-area-inset-top)); background:#111927; color:#C9D2DE;}
-  .verbar .ver{font-size:10.5px; line-height:1.35;}
+  .verbar .ver{font-size:10.5px; line-height:1.35; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;}
   .verbar .ver b{color:#fff; font-weight:800;}
   .verbar .ver .vt{color:#8B95A1;}
   .ver-actions{display:flex; gap:6px; flex:0 0 auto;}
@@ -126,7 +126,8 @@
   .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
   .cal-head .m{font-size:15px; font-weight:800;}
   .cal-nav{display:flex; gap:8px;}
-  .cal-nav button{width:34px; height:34px; border-radius:10px; background:var(--bg); font-size:16px;}
+  .cal-nav button{min-width:34px; height:34px; padding:0 7px; border-radius:10px; background:var(--bg); font-size:15px; font-weight:700; color:var(--t2); display:flex; align-items:center; justify-content:center;}
+  .cal-nav button.today{padding:0 13px; font-size:12.5px;}
   .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
   .cal-dow{text-align:center; font-size:12px; color:var(--t3); padding:4px 0; font-weight:600;}
   .cal-cell{aspect-ratio:1/1.05; border-radius:10px; display:flex; flex-direction:column; align-items:center; padding-top:6px; font-size:13px; position:relative; background:transparent;}
@@ -175,13 +176,20 @@
   .fab{position:fixed; right:20px; bottom:calc(84px + var(--safe-b)); width:56px; height:56px; border-radius:50%; background:var(--blue); color:#fff; font-size:28px; box-shadow:0 6px 20px rgba(49,130,246,.45); display:flex; align-items:center; justify-content:center; z-index:30;}
 
   /* 하단 탭 */
-  .tabbar{
-    position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.94); backdrop-filter:blur(12px);
-    border-top:1px solid var(--line); display:flex; padding-bottom:var(--safe-b);
-  }
-  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:9px 0 8px; color:var(--t3); font-size:11px; font-weight:600;}
-  .tab .ti{font-size:20px; line-height:1;}
-  .tab.active{color:var(--blue);}
+  /* 하단 네비바 — 가계부와 동일한 떠있는 알약형 */
+  .tabbar{position:fixed; left:0; right:0; bottom:0; z-index:40; max-width:480px; margin:0 auto; background:transparent; padding:10px 14px max(12px,var(--safe-b));}
+  .tabbar-inner{display:flex; justify-content:space-around; background:#2D3338; border-radius:22px; padding:11px 8px; box-shadow:0 8px 24px rgba(0,0,0,.18);}
+  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px; color:#8A9098; font-size:11px; font-weight:600; background:none; border:none;}
+  .tab .ti{font-size:19px; line-height:1;}
+  .tab.active{color:#5DA8FF;}
+  /* 모달 내 카드 */
+  .mcard{background:var(--bg); border-radius:14px; padding:14px; margin-bottom:10px;}
+  .mcard .field:last-child{margin-bottom:0;}
+  /* 업데이트 로딩 오버레이 */
+  #updating{position:fixed; inset:0; z-index:500; background:linear-gradient(160deg,#3182F6,#1B64DA); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; color:#fff;}
+  #updating img{width:76px; height:76px; border-radius:18px; box-shadow:0 8px 24px rgba(0,0,0,.3);}
+  #updating .ut{font-size:15px; font-weight:800;} #updating .us{font-size:12px; opacity:.85;}
+  #updating .uspin{width:30px; height:30px; border:3px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite;}
 
   /* 모달 */
   .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; display:flex; align-items:flex-end; justify-content:center; animation:fade .2s;}
@@ -251,10 +259,11 @@
 <!-- 앱 -->
 <div id="app">
   <div class="verbar">
-    <div class="ver">김비서 <b id="verNum">v1.1.0</b> <span class="vt">· 업데이트 <span id="verDate"></span></span></div>
+    <div class="ver" id="verInfo" title="변경 이력 보기">김비서 <b id="verNum">v1.2.0</b> <span class="vt">· <span id="verDate"></span></span></div>
     <div class="ver-actions">
+      <button class="ver-btn" id="feedbackBtn" title="개선 요청">💬<span class="lbl">개선요청</span></button>
       <button class="ver-btn" id="notifBtn" title="알림 허용">🔔<span class="lbl">알림</span></button>
-      <button class="ver-btn" id="refreshBtn" title="최신버전 받기">🔄<span class="lbl">새로고침</span></button>
+      <button class="ver-btn" id="refreshBtn" title="최신버전 받기">🔄</button>
     </div>
   </div>
   <div class="topbar">
@@ -275,12 +284,14 @@
   <button class="fab hidden" id="fab">+</button>
 
   <div class="tabbar">
-    <button class="tab hidden" id="adminTab" data-tab="admin"><span class="ti">👑</span>관리자</button>
-    <button class="tab active" data-tab="dash"><span class="ti">🏠</span>대시보드</button>
-    <button class="tab" data-tab="cal"><span class="ti">📅</span>일정</button>
-    <button class="tab" data-tab="idea"><span class="ti">💡</span>아이디어</button>
-    <button class="tab" data-tab="memo"><span class="ti">📝</span>메모</button>
-    <button class="tab" data-tab="diary"><span class="ti">📔</span>일기</button>
+    <div class="tabbar-inner">
+      <button class="tab hidden" id="adminTab" data-tab="admin"><span class="ti">👑</span>관리자</button>
+      <button class="tab active" data-tab="dash"><span class="ti">🏠</span>대시보드</button>
+      <button class="tab" data-tab="cal"><span class="ti">📅</span>일정</button>
+      <button class="tab" data-tab="idea"><span class="ti">💡</span>아이디어</button>
+      <button class="tab" data-tab="memo"><span class="ti">📝</span>메모</button>
+      <button class="tab" data-tab="diary"><span class="ti">📔</span>일기</button>
+    </div>
   </div>
 </div>
 
@@ -352,8 +363,14 @@ const MOODS = ["😀","🙂","😐","😔","😢","😡","😴","🥰"];
 const ADMIN_EMAIL = "admin@admin.com"; // 마스터(관리자) 계정 이메일
 let isAdmin = false;                 // 현재 로그인 계정이 마스터(관리자)인지
 let adminData = {};                  // 관리자 화면용: 전체 사용자 meta
-const APP_VERSION = "1.1.0";         // 앱 버전
-const BUILD_AT = "2026-07-27 14:02"; // 업데이트(빌드) 일시
+let adminFeedback = {};              // 관리자 화면용: 받은 개선 요청
+const APP_VERSION = "1.2.0";         // 앱 버전 (배포 시 version.json 과 함께 올림)
+const BUILD_AT = "2026-07-27 14:20"; // 업데이트(빌드) 일시
+const CHANGELOG = [                  // 버전 변경 이력
+  {v:"1.2.0", d:"2026-07-27", items:["하단 네비바를 가계부 디자인으로 변경","일정 추가 화면 개선(시간 먼저·카드형 배치)","버전 클릭 시 변경 이력 표시","우측 상단 '개선 요청' 보내기 추가","새 버전 배포 시 업데이트 화면 자동 표시","뒤로가기로 앱이 종료되지 않도록"]},
+  {v:"1.1.0", d:"2026-07-27", items:["가계부와 동일한 Noto Sans KR 글꼴 적용","일정 추가에 시간 휠 피커 + 알림(앱 푸시) 선택","상단 버전바(새로고침/알림 허용)","모든 모달에 닫기 버튼"]},
+  {v:"1.0.0", d:"2026-07-27", items:["첫 배포 — 로그인, 대시보드, 일정(캘린더), 아이디어, 메모, 일기, 관리자"]}
+];
 const ALARM_OPTS = [                 // 일정 알림(앱 푸시) 시점
   {v:null, label:"없음"},
   {v:0,    label:"정각"},
@@ -470,7 +487,7 @@ function attachListeners(){
     });
     listeners.push({ref:r, cb});
   });
-  // 관리자: 전체 사용자 현황 구독
+  // 관리자: 전체 사용자 현황 + 개선 요청 구독
   if(isAdmin){
     const mr = db.ref("meta");
     const mcb = mr.on("value", snap=>{
@@ -478,13 +495,19 @@ function attachListeners(){
       if(currentTab==="admin") renderAdmin();
     });
     listeners.push({ref:mr, cb:mcb});
+    const fr = db.ref("feedback");
+    const fcb = fr.on("value", snap=>{
+      adminFeedback = snap.val() || {};
+      if(currentTab==="admin") renderAdmin();
+    });
+    listeners.push({ref:fr, cb:fcb});
   }
 }
 function detachListeners(){
   listeners.forEach(l=>l.ref.off("value", l.cb));
   listeners.length=0;
   Object.keys(store).forEach(k=>store[k]={});
-  adminData = {};
+  adminData = {}; adminFeedback = {};
 }
 function entries(key){
   return Object.entries(store[key]).map(([id,v])=>({id,...v}));
@@ -528,6 +551,7 @@ function renderAdmin(){
   const v=el("viewAdmin");
   const users=Object.entries(adminData||{}).map(([id,m])=>({id,...m}))
     .sort((a,b)=>(b.lastLogin||0)-(a.lastLogin||0));
+  const fbList=Object.entries(adminFeedback||{}).map(([id,f])=>({id,...f})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const today=todayStr();
   const activeToday=users.filter(u=>u.lastLogin && ymd(new Date(u.lastLogin))===today).length;
   const totalItems=users.reduce((s,u)=>s+sumCounts(u.counts),0);
@@ -559,6 +583,13 @@ function renderAdmin(){
         </div>
       </div>`;
     }).join("") : `<div class="empty"><span class="e-emoji">🫥</span>아직 가입한 사용자가 없어요</div>`}
+
+    <div class="section-title">💬 개선 요청 <span class="muted" style="font-weight:500;font-size:12px;">(${fbList.length})</span></div>
+    ${fbList.length? fbList.map(f=>`
+      <div class="card">
+        <div style="font-size:13.5px; white-space:pre-wrap; line-height:1.55; word-break:break-word;">${esc(f.text)}</div>
+        <div class="muted" style="font-size:11.5px; margin-top:8px;">${esc(f.name||"익명")} · v${esc(f.ver||"")} · ${f.createdAt?relTime(f.createdAt):""}</div>
+      </div>`).join("") : `<div class="empty" style="padding:18px;">받은 개선 요청이 없어요</div>`}
   `;
 }
 
@@ -665,7 +696,7 @@ function renderCal(){
         <div class="m">${calYear}년 ${calMonth+1}월</div>
         <div class="cal-nav">
           <button onclick="calMove(-1)">‹</button>
-          <button onclick="calToday()">오늘</button>
+          <button class="today" onclick="calToday()">오늘</button>
           <button onclick="calMove(1)">›</button>
         </div>
       </div>
@@ -714,9 +745,7 @@ function scheduleModal(id, date){
   const alarmSel = (s.alarm===undefined?null:s.alarm);
   openModal(`
     <h3>${editing?"일정 수정":"새 일정"}</h3>
-    <div class="field"><label>제목</label><input id="mTitle" type="text" placeholder="무엇을 하나요?" value="${esc(s.title)}"></div>
-    <div class="field"><label>날짜</label><input id="mDate" type="date" value="${s.date}"></div>
-    <label style="display:block;font-size:13px;color:var(--t2);margin-bottom:0;font-weight:600;">시간</label>
+    <label style="display:block;font-size:13px;color:var(--t2);margin:2px 0 0;font-weight:700;text-align:center;">시간 선택</label>
     <div class="tp">
       <div class="tp-band"></div>
       <div class="tp-col ampm" id="tpAmpm"></div>
@@ -724,17 +753,25 @@ function scheduleModal(id, date){
       <div class="tp-colon">:</div>
       <div class="tp-col mm" id="tpMM"></div>
     </div>
-    <div class="field"><label>알림 (앱 푸시)</label>
-      <div class="alarm-chips" id="mAlarm">
-        ${ALARM_OPTS.map(o=>`<button data-a="${o.v===null?'null':o.v}" class="${alarmSel===o.v?'sel':''}" onclick="pickAlarm(${o.v===null?'null':o.v})">${o.label}</button>`).join("")}
+    <div class="mcard">
+      <div class="field"><label>제목</label><input id="mTitle" type="text" placeholder="무엇을 하나요?" value="${esc(s.title)}"></div>
+      <div class="field"><label>날짜</label><input id="mDate" type="date" value="${s.date}"></div>
+    </div>
+    <div class="mcard">
+      <div class="field"><label>알림 (앱 푸시)</label>
+        <div class="alarm-chips" id="mAlarm">
+          ${ALARM_OPTS.map(o=>`<button data-a="${o.v===null?'null':o.v}" class="${alarmSel===o.v?'sel':''}" onclick="pickAlarm(${o.v===null?'null':o.v})">${o.label}</button>`).join("")}
+        </div>
       </div>
     </div>
-    <div class="field"><label>색상</label>
-      <div class="color-pick" id="mColor">
-        ${Object.keys(EV_COLORS).map(c=>`<button data-c="${c}" class="${s.color===c?'sel':''}" style="background:${EV_COLORS[c]}" onclick="pickColor('${c}')"></button>`).join("")}
+    <div class="mcard">
+      <div class="field"><label>색상</label>
+        <div class="color-pick" id="mColor">
+          ${Object.keys(EV_COLORS).map(c=>`<button data-c="${c}" class="${s.color===c?'sel':''}" style="background:${EV_COLORS[c]}" onclick="pickColor('${c}')"></button>`).join("")}
+        </div>
       </div>
+      <div class="field"><label>메모 (선택)</label><textarea id="mMemo" placeholder="상세 내용">${esc(s.memo||"")}</textarea></div>
     </div>
-    <div class="field"><label>메모 (선택)</label><textarea id="mMemo" placeholder="상세 내용">${esc(s.memo||"")}</textarea></div>
     <div class="modal-actions">
       ${editing?`<button class="btn-danger" onclick="delSchedule('${id}')">삭제</button>`:""}
       <button class="btn-ghost" onclick="closeModal()">닫기</button>
@@ -1111,6 +1148,78 @@ el("refreshBtn").onclick = forceRefresh;
 updateNotifBtn();
 pruneFired();
 setInterval(checkAlarms, 30000);
+
+/* =========================================================
+   변경 이력 · 개선 요청 · 뒤로가기 방지 · 버전 업데이트 체크
+   ========================================================= */
+function showChangelog(){
+  openModal(`
+    <h3>📋 변경 이력</h3>
+    ${CHANGELOG.map(c=>`
+      <div class="mcard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <b style="font-size:14px;">v${c.v}</b><span class="muted" style="font-size:11.5px;">${c.d}</span>
+        </div>
+        <ul style="margin:0;padding-left:16px;color:var(--t2);font-size:12.5px;line-height:1.7;">
+          ${c.items.map(i=>`<li>${esc(i)}</li>`).join("")}
+        </ul>
+      </div>`).join("")}
+    <div class="modal-actions"><button class="btn-primary" style="flex:1" onclick="closeModal()">닫기</button></div>
+  `);
+}
+function feedbackModal(){
+  if(!uid){ toast("로그인 후 이용해 주세요"); return; }
+  openModal(`
+    <h3>💬 개선 요청</h3>
+    <p style="margin:0 0 12px;color:var(--t3);font-size:12.5px;line-height:1.5;">불편한 점이나 원하는 기능을 남겨주세요. 관리자에게 전달됩니다.</p>
+    <div class="field"><textarea id="fbText" style="min-height:130px" placeholder="개선하고 싶은 내용을 자유롭게 적어주세요"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">닫기</button>
+      <button class="btn-primary" style="flex:1" onclick="sendFeedback()">보내기</button>
+    </div>
+  `);
+}
+function sendFeedback(){
+  const t=el("fbText").value.trim();
+  if(!t){ toast("내용을 입력해 주세요"); return; }
+  db.ref("feedback").push({
+    uid, name:profileName||"", text:t, ver:APP_VERSION,
+    ua:navigator.userAgent, createdAt:Date.now(), status:"new"
+  }).then(()=>{ closeModal(); toast("개선 요청을 보냈어요. 감사합니다!"); })
+   .catch(()=>{ toast("전송에 실패했어요. 잠시 후 다시 시도해 주세요"); });
+}
+
+/* 뒤로가기로 앱이 종료되지 않도록 (모달 닫기 → 대시보드 → 유지) */
+history.pushState({kb:1}, "");
+window.addEventListener("popstate", ()=>{
+  const modalOpen = !!document.querySelector("#modalRoot .modal-bg");
+  const sheet = document.getElementById("installSheet");
+  if(modalOpen || sheet){ if(modalOpen) closeModal(); if(sheet) sheet.remove(); history.pushState({kb:1},""); return; }
+  if(uid && currentTab && currentTab!=="dash"){ switchTab("dash"); history.pushState({kb:1},""); return; }
+  history.pushState({kb:1},"");
+});
+
+/* 배포 버전과 앱 버전 불일치 시 업데이트 화면 후 새로고침 */
+function showUpdateOverlay(){
+  if(document.getElementById("updating")) return;
+  const d=document.createElement("div"); d.id="updating";
+  d.innerHTML=`<img src="icon-192.png" alt=""><div class="uspin"></div><div class="ut">새 버전으로 업데이트 중…</div><div class="us">잠시만 기다려 주세요</div>`;
+  document.body.appendChild(d);
+}
+(function checkVersion(){
+  fetch("version.json?t="+Date.now(), {cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{
+    if(!j || !j.version) return;
+    if(j.version !== APP_VERSION){
+      if(sessionStorage.getItem("kbUpdating")==="1") return;   // 새로고침 후에도 안 맞으면 무한루프 방지
+      sessionStorage.setItem("kbUpdating","1");
+      showUpdateOverlay();
+      setTimeout(forceRefresh, 1200);
+    } else { sessionStorage.removeItem("kbUpdating"); }
+  }).catch(()=>{});
+})();
+
+el("verInfo").onclick = showChangelog;
+el("feedbackBtn").onclick = feedbackModal;
 </script>
 </body>
 </html>
