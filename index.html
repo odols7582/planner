@@ -42,7 +42,7 @@
     max-width:400px; width:100%; margin:0 auto;
   }
   .brand{text-align:center; margin-bottom:24px;}
-  .brand .logo{font-size:44px;}
+  .brand .logo{width:74px;height:74px;border-radius:18px;box-shadow:0 6px 16px rgba(49,130,246,.35);}
   .brand h1{margin:8px 0 4px; font-size:22px; color:var(--t1);}
   .brand p{margin:0; color:var(--t3); font-size:14px;}
   .field{margin-bottom:14px;}
@@ -202,7 +202,7 @@
 <div id="auth" class="hidden">
   <div class="auth-card">
     <div class="brand">
-      <div class="logo">🗓️</div>
+      <img class="logo" src="icon-192.png" alt="김비서" />
       <h1>김비서</h1>
       <p id="authSubtitle">일정 · 아이디어 · 메모 · 일기를 한곳에</p>
     </div>
@@ -391,14 +391,17 @@ auth.onAuthStateChanged(async (user)=>{
     profileName = user.displayName || (user.email||"").split("@")[0];
     // 마지막 접속 시각 기록(앱 열 때마다 갱신)
     db.ref(`meta/${uid}`).update({ initial: profileName, lastLogin: Date.now() });
-    // 마스터(관리자) 계정 여부 확인 (이메일 기준)
+    // 마스터(관리자) 계정 여부 확인 (이메일 기준) — 관리자 메뉴는 숨김, 상단 이름 탭으로만 접근
     isAdmin = (user.email||"").toLowerCase() === ADMIN_EMAIL;
-    el("adminTab").classList.toggle("hidden", !isAdmin);
+    el("adminTab").classList.add("hidden");   // 하단 탭에서 항상 숨김
     el("auth").classList.add("hidden");
     el("app").style.display="block";
-    el("userLabel").textContent = isAdmin ? `👑 ${profileName} (관리자)` : `${profileName} 님`;
+    el("userLabel").textContent = isAdmin ? `👑 ${profileName}` : `${profileName} 님`;
+    el("userLabel").style.cursor = isAdmin ? "pointer" : "";
+    el("userLabel").title = isAdmin ? "관리자 화면 열기" : "";
+    el("userLabel").onclick = isAdmin ? ()=>switchTab(currentTab==="admin" ? "dash" : "admin") : null;
     attachListeners();
-    switchTab(isAdmin ? "admin" : "dash");
+    switchTab("dash");
   }else{
     uid=null; isAdmin=false;
     el("adminTab").classList.add("hidden");
@@ -904,12 +907,12 @@ setTimeout(()=>{
 let deferredPrompt = null;
 function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
 function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
-function installSnoozed(){ return Date.now() < (+(localStorage.getItem("installSnooze")||0)); }
-function snoozeInstall(days){ localStorage.setItem("installSnooze", String(Date.now()+days*86400000)); }
+function installBlocked(){ return isStandalone() || localStorage.getItem("kbInstalled")==="1"; }  // 설치(또는 앱모드) 전에는 매 진입 시 안내
+function dismissInstall(){ /* 저장 안 함: 닫아도 다음 진입 시 다시 안내 */ }
 function closeInstall(){ const b=document.getElementById("installSheet"); if(b) b.remove(); }
 
 function showInstallSheet(mode){   // 'prompt'(안드로이드/데스크톱) | 'ios'
-  if(isStandalone() || installSnoozed() || document.getElementById("installSheet")) return;
+  if(installBlocked() || document.getElementById("installSheet")) return;
   const sheet=document.createElement("div");
   sheet.id="installSheet";
   sheet.style.cssText="position:fixed;left:12px;right:12px;bottom:16px;z-index:600;background:#fff;border-radius:20px;box-shadow:0 10px 36px rgba(0,0,0,.28);padding:18px;max-width:440px;margin:0 auto;animation:slideup .3s;";
@@ -924,7 +927,7 @@ function showInstallSheet(mode){   // 'prompt'(안드로이드/데스크톱) | '
         1. 하단 <b>공유</b> 버튼 <span style="font-size:16px;">⬆️</span> 을 누르세요<br>
         2. <b>'홈 화면에 추가'</b> 를 선택하세요
       </div>
-      <button onclick="snoozeInstall(7);closeInstall();" style="width:100%;margin-top:12px;padding:13px;border-radius:12px;background:#3182F6;color:#fff;font-weight:700;font-size:15px;border:none;">확인</button>`;
+      <button onclick="dismissInstall();closeInstall();" style="width:100%;margin-top:12px;padding:13px;border-radius:12px;background:#3182F6;color:#fff;font-weight:700;font-size:15px;border:none;">확인</button>`;
   }else{
     sheet.innerHTML=`
       <div style="display:flex;align-items:center;gap:12px;">
@@ -939,7 +942,7 @@ function showInstallSheet(mode){   // 'prompt'(안드로이드/데스크톱) | '
   }
   document.body.appendChild(sheet);
   if(mode==="prompt"){
-    document.getElementById("instLater").onclick=()=>{ snoozeInstall(3); closeInstall(); };
+    document.getElementById("instLater").onclick=()=>{ dismissInstall(); closeInstall(); };
     document.getElementById("instYes").onclick=async ()=>{
       closeInstall();
       if(deferredPrompt){ deferredPrompt.prompt(); try{ await deferredPrompt.userChoice; }catch(e){} deferredPrompt=null; }
@@ -952,7 +955,7 @@ window.addEventListener("beforeinstallprompt",(e)=>{
   deferredPrompt=e;
   setTimeout(()=>showInstallSheet("prompt"), 1200);
 });
-window.addEventListener("appinstalled",()=>{ closeInstall(); snoozeInstall(3650); });
+window.addEventListener("appinstalled",()=>{ localStorage.setItem("kbInstalled","1"); closeInstall(); });
 
 // iOS(사파리)는 beforeinstallprompt 미지원 → 접속 시 수동 추가 안내
 if(isIOS() && !isStandalone()){ setTimeout(()=>showInstallSheet("ios"), 1500); }
